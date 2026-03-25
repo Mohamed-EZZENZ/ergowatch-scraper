@@ -1,4 +1,5 @@
 requests==2.31.0
 beautifulsoup4==4.12.2
-supabase==2.3.0
+supabase==1.2.1
+httpx==0.24.1
 python-dateutil==2.8.2
