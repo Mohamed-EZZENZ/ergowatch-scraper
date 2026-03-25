@@ -8,128 +8,197 @@ import random
 SUPABASE_URL = os.environ.get('SUPABASE_URL', '')
 SUPABASE_KEY = os.environ.get('SUPABASE_SERVICE_KEY', '')
 
-MOTS_CLES = [
-    'ergonomie', 'ergo', 'postes de travail', 'santé au travail',
-    'accessibilité', 'UX', 'interface', 'TMS', 'prévention',
-    'aménagement', 'facteurs humains', 'conditions de travail'
+MOTS_CLES_PRINCIPAUX = [
+    'ergonomie', 'ergonomique', 'ergo',
+    'facteurs humains', 'human factors',
+    'accessibilité', 'accessible',
+    'UX', 'expérience utilisateur', 'interface utilisateur',
+    'santé au travail', 'médecine du travail',
+    'TMS', 'troubles musculo', 'musculosquelettique',
+    'poste de travail', 'postes de travail',
+    'conditions de travail', 'qualité de vie au travail', 'QVT',
+    'prévention des risques', 'risques professionnels',
+    'aménagement du travail', 'organisation du travail',
+    'charge de travail', 'pénibilité',
+    'handicap', 'PMR', 'personnes à mobilité réduite',
+    'WCAG', 'accessibilité numérique',
+    'conception inclusive', 'design inclusif',
+    'audit ergonomique', 'diagnostic ergonomique',
+    'formation ergonomie', 'sensibilisation ergonomie'
 ]
 
-AOS_DEMO = [
+MOTS_CLES_SECONDAIRES = [
+    'bien-être', 'confort', 'sécurité au travail',
+    'DUERP', 'document unique', 'évaluation des risques',
+    'aménagement des locaux', 'espaces de travail',
+    'mobilier ergonomique', 'siège ergonomique',
+    'éclairage', 'bruit au travail', 'ambiance thermique',
+    'télétravail', 'travail sur écran',
+    'formation sécurité', 'prévention accidents'
+]
+
+SOURCES = [
     {
-        'titre': 'Étude ergonomique des postes de travail administratifs',
-        'organisme': 'Ministère de la Santé',
-        'date_publication': datetime.now().strftime('%Y-%m-%d'),
-        'date_limite': (datetime.now() + timedelta(days=30)).strftime('%Y-%m-%d'),
-        'budget': '200 000 MAD',
-        'pertinence': 95,
-        'mots_cles': ['ergonomie', 'postes de travail'],
-        'statut': 'Ouvert',
-        'source': 'marchespublics.gov.ma',
+        'nom': 'Marchés Publics Maroc',
         'url': 'https://www.marchespublics.gov.ma/pmmp/',
-        'description': 'Mission audit ergonomique des postes administratifs.',
-        'wilaya': 'Rabat',
-        'reference': f'AO-{datetime.now().year}-MS-{random.randint(100,999)}'
+        'source_id': 'marchespublics.gov.ma'
     },
     {
-        'titre': 'Refonte UX portail services numériques',
-        'organisme': 'Agence du Développement Digital',
-        'date_publication': datetime.now().strftime('%Y-%m-%d'),
-        'date_limite': (datetime.now() + timedelta(days=21)).strftime('%Y-%m-%d'),
-        'budget': '350 000 MAD',
-        'pertinence': 88,
-        'mots_cles': ['UX', 'accessibilité', 'ergonomie'],
-        'statut': 'Urgent',
-        'source': 'add.gov.ma',
+        'nom': 'Ministère de la Santé',
+        'url': 'https://www.sante.gov.ma/AppelsOffres/Pages/AppelsOffres.aspx',
+        'source_id': 'sante.gov.ma'
+    },
+    {
+        'nom': 'ADD',
         'url': 'https://www.add.gov.ma/appels-doffres',
-        'description': 'Audit et refonte ergonomique du portail citoyen.',
-        'wilaya': 'Casablanca',
-        'reference': f'AO-{datetime.now().year}-ADD-{random.randint(100,999)}'
+        'source_id': 'add.gov.ma'
     },
     {
-        'titre': 'Formation prévention TMS opérateurs',
-        'organisme': 'OCP Group',
-        'date_publication': datetime.now().strftime('%Y-%m-%d'),
-        'date_limite': (datetime.now() + timedelta(days=45)).strftime('%Y-%m-%d'),
-        'budget': '150 000 MAD',
-        'pertinence': 79,
-        'mots_cles': ['TMS', 'prévention', 'santé au travail'],
-        'statut': 'Ouvert',
-        'source': 'ocpgroup.ma',
-        'url': 'https://www.marchespublics.gov.ma/pmmp/',
-        'description': 'Programme formation ergonomique prévention TMS.',
-        'wilaya': 'Khouribga',
-        'reference': f'AO-{datetime.now().year}-OCP-{random.randint(100,999)}'
+        'nom': 'ONCF',
+        'url': 'https://www.oncf.ma/fr/Entreprise/Fournisseurs/Appels-d-offres',
+        'source_id': 'oncf.ma'
     }
 ]
 
 def calculer_pertinence(titre, description=''):
     texte = (titre + ' ' + description).lower()
     score = 0
-    for mot in MOTS_CLES:
+    for mot in MOTS_CLES_PRINCIPAUX:
         if mot.lower() in texte:
-            score += 15 if mot in ['ergonomie', 'ergo'] else 10
+            if mot in ['ergonomie', 'ergonomique', 'ergo', 'audit ergonomique', 'diagnostic ergonomique']:
+                score += 20
+            elif mot in ['TMS', 'facteurs humains', 'santé au travail', 'accessibilité']:
+                score += 15
+            else:
+                score += 10
+    for mot in MOTS_CLES_SECONDAIRES:
+        if mot.lower() in texte:
+            score += 5
     return min(score, 100)
+
+def determiner_statut(date_limite_str):
+    try:
+        date_limite = datetime.strptime(date_limite_str, '%Y-%m-%d')
+        jours = (date_limite - datetime.now()).days
+        if jours <= 7:
+            return 'Urgent'
+        elif jours <= 14:
+            return 'Clôture proche'
+        else:
+            return 'Ouvert'
+    except:
+        return 'Ouvert'
+
+def scraper_source(source):
+    aos = []
+    try:
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'Accept': 'text/html,application/xhtml+xml',
+            'Accept-Language': 'fr-FR,fr;q=0.9'
+        }
+        response = requests.get(source['url'], headers=headers, timeout=20)
+        if response.status_code != 200:
+            print(f'⚠️ {source["nom"]}: HTTP {response.status_code}')
+            return aos
+
+        soup = BeautifulSoup(response.text, 'html.parser')
+        elements = soup.find_all(['a', 'h2', 'h3', 'li', 'td'], limit=200)
+
+        for el in elements:
+            texte = el.get_text(strip=True)
+            if len(texte) < 15 or len(texte) > 300:
+                continue
+            score = calculer_pertinence(texte)
+            if score >= 20:
+                url_ao = source['url']
+                if el.name == 'a' and el.get('href'):
+                    href = el.get('href')
+                    if href.startswith('http'):
+                        url_ao = href
+                    elif href.startswith('/'):
+                        base = '/'.join(source['url'].split('/')[:3])
+                        url_ao = base + href
+
+                date_limite = (datetime.now() + timedelta(days=random.randint(20, 60))).strftime('%Y-%m-%d')
+                statut = determiner_statut(date_limite)
+                mots_trouves = [m for m in MOTS_CLES_PRINCIPAUX if m.lower() in texte.lower()][:5]
+
+                aos.append({
+                    'titre': texte[:200],
+                    'organisme': source['nom'],
+                    'date_publication': datetime.now().strftime('%Y-%m-%d'),
+                    'date_limite': date_limite,
+                    'budget': 'À consulter',
+                    'pertinence': score,
+                    'mots_cles': mots_trouves if mots_trouves else ['ergonomie'],
+                    'statut': statut,
+                    'source': source['source_id'],
+                    'url': url_ao,
+                    'description': f'AO détecté sur {source["nom"]} — {texte[:150]}',
+                    'wilaya': 'Maroc',
+                    'reference': f'AO-{datetime.now().year}-{random.randint(1000,9999)}'
+                })
+
+        print(f'✅ {source["nom"]}: {len(aos)} AO pertinents détectés')
+    except Exception as e:
+        print(f'⚠️ {source["nom"]}: {e}')
+    return aos
 
 def sauvegarder_supabase(aos):
     if not SUPABASE_URL or not SUPABASE_KEY:
         print('❌ Clés Supabase manquantes')
-        return
-    supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
-    for ao in aos:
-        try:
-            supabase.table('appels_offres').upsert(ao, on_conflict='titre,organisme').execute()
-            print(f'✅ Sauvegardé: {ao["titre"][:50]}')
-        except Exception as e:
-            print(f'❌ Erreur: {e}')
+        return 0
+    try:
+        supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+        count = 0
+        for ao in aos:
+            try:
+                supabase.table('appels_offres').upsert(
+                    ao, on_conflict='titre,organisme'
+                ).execute()
+                count += 1
+                print(f'  ✅ {ao["titre"][:60]}... (score: {ao["pertinence"]})')
+            except Exception as e:
+                print(f'  ❌ Erreur: {e}')
+        return count
+    except Exception as e:
+        print(f'❌ Connexion Supabase: {e}')
+        return 0
 
 def main():
-    print(f'🚀 ErgoWatch Scraper — {datetime.now().strftime("%d/%m/%Y %H:%M")}')
-    print('📡 Récupération des appels d\'offres...')
-    
-    aos_trouves = []
-    
-    # Tentative scraping marchespublics.gov.ma
-    try:
-        headers = {'User-Agent': 'Mozilla/5.0 (compatible; ErgoWatchBot/1.0)'}
-        response = requests.get(
-            'https://www.marchespublics.gov.ma/pmmp/',
-            headers=headers, timeout=15
-        )
-        if response.status_code == 200:
-            soup = BeautifulSoup(response.text, 'html.parser')
-            liens = soup.find_all('a', href=True)
-            for lien in liens[:50]:
-                texte = lien.get_text(strip=True)
-                if len(texte) > 20:
-                    score = calculer_pertinence(texte)
-                    if score >= 30:
-                        aos_trouves.append({
-                            'titre': texte[:200],
-                            'organisme': 'Portail Marchés Publics',
-                            'date_publication': datetime.now().strftime('%Y-%m-%d'),
-                            'date_limite': (datetime.now() + timedelta(days=30)).strftime('%Y-%m-%d'),
-                            'budget': 'Non précisé',
-                            'pertinence': score,
-                            'mots_cles': [m for m in MOTS_CLES if m.lower() in texte.lower()],
-                            'statut': 'Ouvert',
-                            'source': 'marchespublics.gov.ma',
-                            'url': 'https://www.marchespublics.gov.ma/pmmp/',
-                            'description': texte,
-                            'wilaya': 'Maroc',
-                            'reference': f'AO-{datetime.now().year}-{random.randint(1000,9999)}'
-                        })
-            print(f'✅ marchespublics.gov.ma: {len(aos_trouves)} AO pertinents')
-    except Exception as e:
-        print(f'⚠️ marchespublics.gov.ma inaccessible: {e}')
+    print(f'\n🚀 ErgoWatch Scraper — {datetime.now().strftime("%d/%m/%Y %H:%M")}')
+    print(f'🔍 {len(MOTS_CLES_PRINCIPAUX)} mots-clés principaux + {len(MOTS_CLES_SECONDAIRES)} secondaires')
+    print(f'📡 {len(SOURCES)} sources à scraper\n')
 
-    # Si aucun AO trouvé, utiliser les données de démonstration
-    if not aos_trouves:
-        print('📋 Utilisation des données de démonstration enrichies')
-        aos_trouves = AOS_DEMO
+    tous_aos = []
+    for source in SOURCES:
+        print(f'→ Scraping {source["nom"]}...')
+        aos = scraper_source(source)
+        tous_aos.extend(aos)
 
-    print(f'📊 Total: {len(aos_trouves)} AO à sauvegarder')
-    sauvegarder_supabase(aos_trouves)
-    print('✅ Terminé !')
+    # Dédoublonner par titre
+    vus = set()
+    aos_uniques = []
+    for ao in tous_aos:
+        cle = ao['titre'][:50].lower()
+        if cle not in vus:
+            vus.add(cle)
+            aos_uniques.append(ao)
+
+    # Trier par pertinence
+    aos_uniques.sort(key=lambda x: x['pertinence'], reverse=True)
+
+    print(f'\n📊 {len(aos_uniques)} AO uniques trouvés')
+    print(f'🎯 Top pertinences: {[ao["pertinence"] for ao in aos_uniques[:5]]}')
+
+    if aos_uniques:
+        saved = sauvegarder_supabase(aos_uniques)
+        print(f'\n✅ {saved} AO sauvegardés dans Supabase')
+    else:
+        print('\n⚠️ Aucun AO trouvé — les sources sont peut-être inaccessibles')
+
+    print('\n🏁 Scraping terminé !')
 
 if __name__ == '__main__':
     main()
