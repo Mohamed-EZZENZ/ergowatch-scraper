@@ -1,30 +1,92 @@
-name: ErgoWatch France — Scraper automatique
+name: ErgoWatch — Veille Maroc + France
 
 on:
   schedule:
-    - cron: '0 6 * * *'
-    - cron: '0 17 * * *'
-  workflow_dispatch:
+    - cron: '0 6 * * *'    # 07h00 heure Maroc (UTC+1)
+    - cron: '0 17 * * *'   # 18h00 heure Maroc (UTC+1)
+  workflow_dispatch:        # Bouton manuel "Run workflow"
 
 jobs:
-  scraper-france:
+  scrape-et-notifier:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
 
     steps:
-      - name: Récupérer le code
-        uses: actions/checkout@v4
 
-      - name: Configurer Python 3.11
-        uses: actions/setup-python@v5
+      # ── 1. Récupérer le code ──────────────────────────────────────
+      - name: 📥 Récupérer le code
+        uses: actions/checkout@v3
+
+      # ── 2. Installer Python ───────────────────────────────────────
+      - name: 🐍 Installer Python 3.11
+        uses: actions/setup-python@v4
         with:
           python-version: '3.11'
+          cache: 'pip'
 
-      - name: Installer les dépendances
+      # ── 3. Installer les dépendances ──────────────────────────────
+      - name: 📦 Installer les dépendances
         run: pip install -r requirements.txt
 
-      - name: Lancer le scraper France
+      # ── 4. Lancer le scraper Maroc ────────────────────────────────
+      - name: 🇲🇦 Scraper Maroc (marchespublics.gov.ma)
+        id: scraper_maroc
+        run: python scraper.py 2>&1 | tee maroc_output.txt
         env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL_FRANCE }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY_FRANCE }}
-        run: python scraper_france.py
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        continue-on-error: true
+
+      # ── 5. Lancer le scraper France ───────────────────────────────
+      - name: 🇫🇷 Scraper France (sources françaises)
+        id: scraper_france
+        run: python scraper_france.py 2>&1 | tee france_output.txt
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        continue-on-error: true
+
+      # ── 6. Préparer l'heure Maroc ─────────────────────────────────
+      - name: 🕐 Préparer le rapport
+        id: rapport
+        run: |
+          HEURE=$(TZ='Africa/Casablanca' date '+%d/%m/%Y à %Hh%M')
+          echo "heure=$HEURE" >> $GITHUB_OUTPUT
+
+      # ── 7. Email si au moins un scraper a réussi ─────────────────
+      - name: ✅ Email — Veille terminée
+        if: always()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          secure: true
+          username: ${{ secrets.EMAIL_USER }}
+          password: ${{ secrets.EMAIL_PASSWORD }}
+          subject: "🎯 ErgoWatch — Rapport de veille du ${{ steps.rapport.outputs.heure }}"
+          to: ${{ secrets.EMAIL_DESTINATAIRE }}
+          from: "ErgoWatch Maroc <${{ secrets.EMAIL_USER }}>"
+          body: |
+            Bonjour,
+
+            Votre robot de veille ErgoWatch vient de terminer son analyse.
+
+            ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            🇲🇦 Scraper Maroc  : ${{ steps.scraper_maroc.outcome == 'success' && '✅ Succès' || '❌ Échec' }}
+            🇫🇷 Scraper France : ${{ steps.scraper_france.outcome == 'success' && '✅ Succès' || '❌ Échec' }}
+            🕐 Exécuté le      : ${{ steps.rapport.outputs.heure }}
+            ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+            De nouveaux appels d'offre en ergonomie ont peut-être
+            été ajoutés à votre base de données Supabase.
+
+            👉 Consultez votre tableau de bord :
+            https://votre-app.netlify.app
+
+            En cas d'erreur, consultez les logs GitHub :
+            https://github.com/${{ github.repository }}/actions
+
+            ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            Cordialement,
+            Votre robot ErgoWatch 🤖
+            Indigo Ergonomie Maroc
