@@ -33,8 +33,8 @@ jobs:
         id: scraper_maroc
         run: python scraper.py 2>&1 | tee maroc_output.txt
         env:
-        SUPABASE_URL: ${{ secrets.SUPABASE_URL_MAROC }}
-SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY_MAROC }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL_MAROC }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY_MAROC }}
         continue-on-error: true
 
       # ── 5. Lancer le scraper France ───────────────────────────────
