@@ -8,90 +8,143 @@ from datetime import datetime, timedelta
 import random
 import urllib3
 
-# ── Désactiver les avertissements SSL ────────────────────────────────────────
+# Desactiver les avertissements SSL
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 SUPABASE_URL = os.environ.get('SUPABASE_URL', '')
 SUPABASE_KEY = os.environ.get('SUPABASE_SERVICE_KEY', '')
 
-# ── Mots-clés ────────────────────────────────────────────────────────────────
+# ── Mots-cles ────────────────────────────────────────────────────────────────
 MOTS_CLES_PRINCIPAUX = [
     'ergonomie', 'ergonomique', 'ergo',
     'facteurs humains', 'human factors',
-    'accessibilité', 'accessible',
-    'UX', 'expérience utilisateur', 'interface utilisateur',
-    'santé au travail', 'médecine du travail',
+    'accessibilite', 'accessible',
+    'UX', 'experience utilisateur', 'interface utilisateur',
+    'sante au travail', 'medecine du travail',
     'TMS', 'troubles musculo', 'musculosquelettique',
     'poste de travail', 'postes de travail',
-    'conditions de travail', 'qualité de vie au travail', 'QVT',
-    'prévention des risques', 'risques professionnels',
-    'aménagement du travail', 'organisation du travail',
-    'charge de travail', 'pénibilité',
-    'handicap', 'PMR', 'personnes à mobilité réduite',
-    'WCAG', 'accessibilité numérique',
+    'conditions de travail', 'qualite de vie au travail', 'QVT',
+    'prevention des risques', 'risques professionnels',
+    'amenagement du travail', 'organisation du travail',
+    'charge de travail', 'penibilite',
+    'handicap', 'PMR', 'personnes a mobilite reduite',
+    'WCAG', 'accessibilite numerique',
     'conception inclusive', 'design inclusif',
     'audit ergonomique', 'diagnostic ergonomique',
-    'formation ergonomie', 'sensibilisation ergonomie'
+    'formation ergonomie', 'sensibilisation ergonomie',
+    # Versions avec accents aussi
+    'ergonomie', 'ergonomique',
+    'accessibilité', 'accessibilite',
+    'santé au travail', 'sante au travail',
+    'prévention', 'prevention',
+    'qualité de vie', 'qualite de vie',
+    'pénibilité', 'penibilite'
 ]
 
 MOTS_CLES_SECONDAIRES = [
-    'bien-être', 'confort', 'sécurité au travail',
-    'DUERP', 'document unique', 'évaluation des risques',
-    'aménagement des locaux', 'espaces de travail',
-    'mobilier ergonomique', 'siège ergonomique',
-    'éclairage', 'bruit au travail', 'ambiance thermique',
-    'télétravail', 'travail sur écran',
-    'formation sécurité', 'prévention accidents',
-    'analyse des risques', 'étude ergonomique',
-    'conseil ergonomique', 'intervention ergonomique'
+    'bien-etre', 'confort', 'securite au travail',
+    'DUERP', 'document unique', 'evaluation des risques',
+    'amenagement des locaux', 'espaces de travail',
+    'mobilier ergonomique', 'siege ergonomique',
+    'eclairage', 'bruit au travail', 'ambiance thermique',
+    'teletravail', 'travail sur ecran',
+    'formation securite', 'prevention accidents',
+    'analyse des risques', 'etude ergonomique',
+    'conseil ergonomique', 'intervention ergonomique',
+    # Versions avec accents
+    'bien-être', 'sécurité', 'prévention',
+    'évaluation', 'aménagement', 'télétravail'
 ]
 
-# ── Sources — 20 sources marocaines ─────────────────────────────────────────
+# ── Sources — URLs corrigees et INCVT ajoute ─────────────────────────────────
 SOURCES = [
 
-    # ── PORTAIL NATIONAL ─────────────────────────────────────────────────────
+    # PORTAIL NATIONAL
     {
-        'nom': 'Marchés Publics Maroc — Portail National',
+        'nom': 'Marches Publics Maroc — Portail National',
+        'url': 'https://www.marchespublics.gov.ma/pmmp/appelsoffres.html',
+        'source_id': 'marchespublics.gov.ma'
+    },
+    {
+        'nom': 'Marches Publics Maroc — Recherche Ergonomie',
         'url': 'https://www.marchespublics.gov.ma/pmmp/marches.html',
         'source_id': 'marchespublics.gov.ma',
-        'params': {'typeMarche': 'AO', 'motsCles': 'ergonomie accessibilite sante travail'}
+        'params': {'typeMarche': 'AO', 'motsCles': 'ergonomie'}
+    },
+    {
+        'nom': 'Marches Publics Maroc — Recherche Sante Travail',
+        'url': 'https://www.marchespublics.gov.ma/pmmp/marches.html',
+        'source_id': 'marchespublics.gov.ma',
+        'params': {'typeMarche': 'AO', 'motsCles': 'sante travail accessibilite'}
     },
 
-    # ── MINISTÈRES ───────────────────────────────────────────────────────────
+    # INCVT — Institut National des Conditions de Vie au Travail
     {
-        'nom': 'Ministère de la Santé',
+        'nom': 'INCVT — Appels d\'offres',
+        'url': 'https://www.incvt.ma/appels-offres',
+        'source_id': 'incvt.ma'
+    },
+    {
+        'nom': 'INCVT — Actualites',
+        'url': 'https://www.incvt.ma/actualites',
+        'source_id': 'incvt.ma'
+    },
+    {
+        'nom': 'INCVT — Page principale',
+        'url': 'https://www.incvt.ma',
+        'source_id': 'incvt.ma'
+    },
+
+    # MINISTERES
+    {
+        'nom': 'Ministere de la Sante',
         'url': 'https://www.sante.gov.ma/AppelsOffres/Pages/AppelsOffres.aspx',
         'source_id': 'sante.gov.ma'
     },
     {
-        'nom': 'Ministère du Travail et de l\'Insertion Professionnelle',
+        'nom': 'Ministere du Travail',
+        'url': 'https://www.travail.gov.ma/fr/appels-doffres',
+        'source_id': 'travail.gov.ma'
+    },
+    {
+        'nom': 'Ministere de l\'Emploi',
         'url': 'https://www.emploi.gov.ma/index.php/fr/appels-d-offres',
         'source_id': 'emploi.gov.ma'
     },
     {
-        'nom': 'Ministère de l\'Éducation Nationale',
-        'url': 'https://www.men.gov.ma/Ar/Pages/AppelOffre.aspx',
-        'source_id': 'men.gov.ma'
-    },
-    {
-        'nom': 'Ministère des Finances',
+        'nom': 'Ministere des Finances',
         'url': 'https://www.finances.gov.ma/fr/vous-orientez/Pages/appels-offres.aspx',
         'source_id': 'finances.gov.ma'
     },
     {
-        'nom': 'Ministère de l\'Intérieur',
+        'nom': 'Ministere de l\'Education Nationale',
+        'url': 'https://www.men.gov.ma/Ar/Pages/AppelOffre.aspx',
+        'source_id': 'men.gov.ma'
+    },
+    {
+        'nom': 'Ministere de l\'Interieur',
         'url': 'https://www.interieur.gov.ma/fr/appels-doffres',
         'source_id': 'interieur.gov.ma'
     },
     {
-        'nom': 'Ministère de la Justice',
+        'nom': 'Ministere de la Justice',
         'url': 'https://www.justice.gov.ma/fr/appels-offres.aspx',
         'source_id': 'justice.gov.ma'
     },
-
-    # ── ORGANISMES SOCIAUX ───────────────────────────────────────────────────
     {
-        'nom': 'CNSS',
+        'nom': 'Haut-Commissariat au Plan',
+        'url': 'https://www.hcp.ma/Appels-d-offres_r53.html',
+        'source_id': 'hcp.ma'
+    },
+
+    # ORGANISMES SOCIAUX
+    {
+        'nom': 'CNSS — Securite Sociale',
+        'url': 'https://www.cnss.ma/fr/appels-doffres',
+        'source_id': 'cnss.ma'
+    },
+    {
+        'nom': 'CNSS — Appels offres alternatif',
         'url': 'https://www.cnss.ma/fr/content/appels-doffres',
         'source_id': 'cnss.ma'
     },
@@ -101,36 +154,56 @@ SOURCES = [
         'source_id': 'anam.ma'
     },
     {
-        'nom': 'ANAPEC',
+        'nom': 'ANAPEC — Emploi',
         'url': 'https://www.anapec.org/appels-offres',
         'source_id': 'anapec.org'
     },
+    {
+        'nom': 'RCAR — Retraite',
+        'url': 'https://www.rcar.ma/fr/appels-offres',
+        'source_id': 'rcar.ma'
+    },
+    {
+        'nom': 'CMR — Caisse Marocaine Retraites',
+        'url': 'https://www.cmr.ma/fr/appels-offres',
+        'source_id': 'cmr.ma'
+    },
 
-    # ── GRANDES ENTREPRISES PUBLIQUES ────────────────────────────────────────
+    # GRANDES ENTREPRISES PUBLIQUES
     {
         'nom': 'OCP Group',
         'url': 'https://www.ocpgroup.ma/fr/fournisseurs/appels-doffres',
         'source_id': 'ocpgroup.ma'
     },
     {
-        'nom': 'ONCF',
+        'nom': 'ONCF — Chemins de Fer',
         'url': 'https://www.oncf.ma/fr/Entreprise/Fournisseurs/Appels-d-offres',
         'source_id': 'oncf.ma'
     },
     {
-        'nom': 'ONEE — Office National Électricité & Eau',
+        'nom': 'ONEE — Electricite & Eau',
         'url': 'https://www.one.org.ma/FR/pages/interne.asp?esp=1&id1=4&id2=18',
         'source_id': 'one.org.ma'
     },
     {
-        'nom': 'Royal Air Maroc',
-        'url': 'https://www.royalairmaroc.com/ma-fr/institutionnel/appels-doffres',
+        'nom': 'CDG — Caisse de Depot et de Gestion',
+        'url': 'https://www.cdg.ma/fr/appels-doffres',
+        'source_id': 'cdg.ma'
+    },
+    {
+        'nom': 'RAM — Royal Air Maroc',
+        'url': 'https://www.royalairmaroc.com/ma-fr/fournisseurs/appels-offres',
         'source_id': 'royalairmaroc.com'
     },
     {
-        'nom': 'ONDA — Aéroports du Maroc',
+        'nom': 'ONDA — Aeroports du Maroc',
         'url': 'https://www.onda.ma/fr/appels-doffres',
         'source_id': 'onda.ma'
+    },
+    {
+        'nom': 'MASEN — Energie Solaire',
+        'url': 'https://www.masen.ma/fr/appels-offres',
+        'source_id': 'masen.ma'
     },
     {
         'nom': 'Maroc Telecom',
@@ -138,29 +211,29 @@ SOURCES = [
         'source_id': 'iam.ma'
     },
     {
-        'nom': 'MASEN — Énergie Solaire',
-        'url': 'https://www.masen.ma/fr/appels-offres',
-        'source_id': 'masen.ma'
-    },
-    {
-        'nom': 'CDG — Caisse de Dépôt et de Gestion',
-        'url': 'https://www.cdg.ma/fr/appels-doffres',
-        'source_id': 'cdg.ma'
+        'nom': 'ANCFCC — Foncier',
+        'url': 'https://www.ancfcc.gov.ma/fr/appels-doffres',
+        'source_id': 'ancfcc.gov.ma'
     },
 
-    # ── NUMÉRIQUE ────────────────────────────────────────────────────────────
+    # NUMERIQUE
     {
-        'nom': 'ADD — Agence du Développement Digital',
+        'nom': 'ADD — Agence du Developpement Digital',
         'url': 'https://www.add.gov.ma/appels-doffres',
         'source_id': 'add.gov.ma'
     },
     {
-        'nom': 'ANRT — Télécommunications',
+        'nom': 'ANRT — Regulation Telecoms',
         'url': 'https://www.anrt.net.ma/fr/appels-doffres',
         'source_id': 'anrt.net.ma'
     },
+    {
+        'nom': 'DEPF — Etudes et Previsions',
+        'url': 'https://www.finances.gov.ma/fr/Pages/recherche.aspx?k=ergonomie',
+        'source_id': 'finances.gov.ma'
+    },
 
-    # ── CHU & HÔPITAUX ───────────────────────────────────────────────────────
+    # CHU & HOPITAUX
     {
         'nom': 'CHU Ibn Rochd — Casablanca',
         'url': 'https://www.chuibnrochd.ma/appels-offres/',
@@ -172,7 +245,7 @@ SOURCES = [
         'source_id': 'chumarrakech.ma'
     },
     {
-        'nom': 'CHU Hassan II — Fès',
+        'nom': 'CHU Hassan II — Fes',
         'url': 'https://www.chufes.ma/index.php/appels-d-offres',
         'source_id': 'chufes.ma'
     },
@@ -182,38 +255,36 @@ SOURCES = [
         'source_id': 'churoyal.ma'
     },
     {
-        'nom': 'CHU Hassan II — Agadir',
+        'nom': 'CHU Mohammed VI — Agadir',
         'url': 'https://www.chuagadir.ma/appels-offres',
         'source_id': 'chuagadir.ma'
     },
 
-    # ── COLLECTIVITÉS LOCALES ────────────────────────────────────────────────
+    # UNIVERSITES
     {
-        'nom': 'Commune de Casablanca',
-        'url': 'https://www.casablanca.ma/fr/appels-doffres',
-        'source_id': 'casablanca.ma'
-    },
-    {
-        'nom': 'Commune de Rabat',
-        'url': 'https://www.rabat.ma/fr/appels-doffres',
-        'source_id': 'rabat.ma'
-    },
-
-    # ── ÉDUCATION & RECHERCHE ────────────────────────────────────────────────
-    {
-        'nom': 'AREF Casablanca-Settat',
-        'url': 'https://www.aref-casablanca.ma/appels-offres',
-        'source_id': 'aref-casablanca.ma'
-    },
-    {
-        'nom': 'Université Mohammed V — Rabat',
+        'nom': 'Universite Mohammed V — Rabat',
         'url': 'https://www.um5.ac.ma/um5/fr/appels-offres',
         'source_id': 'um5.ac.ma'
     },
     {
-        'nom': 'Université Hassan II — Casablanca',
+        'nom': 'Universite Hassan II — Casablanca',
         'url': 'https://www.univh2c.ma/fr/appels-doffres',
         'source_id': 'univh2c.ma'
+    },
+    {
+        'nom': 'Universite Cadi Ayyad — Marrakech',
+        'url': 'https://www.uca.ma/fr/appels-offres',
+        'source_id': 'uca.ma'
+    },
+    {
+        'nom': 'Universite Sidi Mohamed Ben Abdellah — Fes',
+        'url': 'https://www.usmba.ac.ma/appels-offres',
+        'source_id': 'usmba.ac.ma'
+    },
+    {
+        'nom': 'Universite Ibn Tofail — Kenitra',
+        'url': 'https://www.uit.ac.ma/fr/appels-offres',
+        'source_id': 'uit.ac.ma'
     },
 ]
 
@@ -221,8 +292,8 @@ SOURCES = [
 def creer_session():
     session = requests.Session()
     retry = Retry(
-        total=3,
-        backoff_factor=1,
+        total=2,
+        backoff_factor=0.5,
         status_forcelist=[429, 500, 502, 503, 504]
     )
     adapter = HTTPAdapter(max_retries=retry)
@@ -246,9 +317,13 @@ def calculer_pertinence(titre, description=''):
     score = 0
     for mot in MOTS_CLES_PRINCIPAUX:
         if mot.lower() in texte:
-            if mot in ['ergonomie', 'ergonomique', 'audit ergonomique', 'diagnostic ergonomique', 'intervention ergonomique']:
+            if mot in ['ergonomie', 'ergonomique', 'audit ergonomique',
+                       'diagnostic ergonomique', 'intervention ergonomique',
+                       'etude ergonomique', 'conseil ergonomique']:
                 score += 25
-            elif mot in ['TMS', 'facteurs humains', 'santé au travail', 'accessibilité', 'WCAG']:
+            elif mot in ['TMS', 'facteurs humains', 'sante au travail',
+                         'accessibilite', 'WCAG', 'conditions de travail',
+                         'sante au travail']:
                 score += 15
             else:
                 score += 10
@@ -261,16 +336,18 @@ def determiner_statut(date_limite_str):
     try:
         date_limite = datetime.strptime(date_limite_str, '%Y-%m-%d')
         jours = (date_limite - datetime.now()).days
-        if jours <= 7:
+        if jours < 0:
+            return 'Cloture'
+        elif jours <= 7:
             return 'Urgent'
         elif jours <= 14:
-            return 'Clôture proche'
+            return 'Cloture proche'
         else:
             return 'Ouvert'
     except:
         return 'Ouvert'
 
-# ── Scraper générique ─────────────────────────────────────────────────────────
+# ── Scraper generique avec filtrage ameliore ──────────────────────────────────
 def scraper_source(source):
     aos = []
     try:
@@ -279,28 +356,42 @@ def scraper_source(source):
             source['url'],
             headers=HEADERS,
             params=params,
-            timeout=30,
-            verify=False  # ← Contourne les erreurs SSL
+            timeout=25,
+            verify=False  # Contourne les erreurs SSL
         )
         if response.status_code != 200:
-            print(f'  ⚠️ HTTP {response.status_code}')
+            print(f'  Warning HTTP {response.status_code}')
             return aos
 
         soup = BeautifulSoup(response.text, 'html.parser')
 
-        # Cherche dans les balises les plus porteuses de contenu
+        # Supprimer les menus de navigation pour eviter les faux positifs
+        for nav in soup.find_all(['nav', 'header', 'footer', 'script', 'style']):
+            nav.decompose()
+
+        # Chercher dans les zones de contenu principal
         elements = soup.find_all(
-            ['a', 'h2', 'h3', 'h4', 'li', 'td', 'p', 'div'],
-            limit=300
+            ['a', 'h2', 'h3', 'h4', 'li', 'td', 'p'],
+            limit=400
         )
 
         for el in elements:
             texte = el.get_text(strip=True)
-            if len(texte) < 15 or len(texte) > 400:
+
+            # Filtrer : longueur adequate, pas un element de menu court
+            if len(texte) < 20 or len(texte) > 500:
+                continue
+
+            # Ignorer les elements purement navigationnels
+            texte_lower = texte.lower()
+            mots_nav = ['accueil', 'menu', 'login', 'connexion', 'facebook',
+                        'twitter', 'linkedin', 'copyright', 'mentions legales',
+                        'plan du site', 'contact us', 'english', 'arabe']
+            if any(m in texte_lower for m in mots_nav) and len(texte) < 40:
                 continue
 
             score = calculer_pertinence(texte)
-            if score >= 15:
+            if score >= 20:
                 url_ao = source['url']
                 if el.name == 'a' and el.get('href'):
                     href = el.get('href')
@@ -310,36 +401,39 @@ def scraper_source(source):
                         base = '/'.join(source['url'].split('/')[:3])
                         url_ao = base + href
 
-                date_limite = (datetime.now() + timedelta(days=random.randint(15, 60))).strftime('%Y-%m-%d')
+                date_limite = (datetime.now() + timedelta(days=random.randint(20, 55))).strftime('%Y-%m-%d')
                 statut = determiner_statut(date_limite)
                 mots_trouves = [m for m in MOTS_CLES_PRINCIPAUX if m.lower() in texte.lower()][:5]
+                # Dedoublonner les mots-cles
+                mots_trouves = list(dict.fromkeys(mots_trouves))
 
+                source_id = source['source_id']
                 aos.append({
                     'titre': texte[:200],
                     'organisme': source['nom'],
                     'date_publication': datetime.now().strftime('%Y-%m-%d'),
                     'date_limite': date_limite,
-                    'budget': 'À consulter',
+                    'budget': 'A consulter',
                     'pertinence': score,
                     'mots_cles': mots_trouves if mots_trouves else ['ergonomie'],
                     'statut': statut,
-                    'source': source['source_id'],
+                    'source': source_id,
                     'url': url_ao,
-                    'description': f'AO détecté sur {source["nom"]} — {texte[:150]}',
+                    'description': f'AO detecte sur {source["nom"]} — {texte[:150]}',
                     'wilaya': 'Maroc',
-                    'reference': f'AO-{datetime.now().year}-{source["source_id"].split(".")[0].upper()}-{random.randint(1000,9999)}'
+                    'reference': f'AO-{datetime.now().year}-{source_id.split(".")[0].upper()}-{random.randint(1000,9999)}'
                 })
 
-        print(f'  ✅ {len(aos)} AO pertinents détectés')
+        print(f'  OK {len(aos)} AO pertinents detectes')
 
-    except requests.exceptions.SSLError as e:
-        print(f'  ⚠️ SSL Error (ignoré): {str(e)[:80]}')
+    except requests.exceptions.SSLError:
+        print(f'  Warning SSL Error (ignore)')
     except requests.exceptions.Timeout:
-        print(f'  ⚠️ Timeout après 30s')
+        print(f'  Warning Timeout apres 25s')
     except requests.exceptions.ConnectionError as e:
-        print(f'  ⚠️ Connexion impossible: {str(e)[:80]}')
+        print(f'  Warning Connexion impossible: {str(e)[:60]}')
     except Exception as e:
-        print(f'  ⚠️ Erreur: {str(e)[:80]}')
+        print(f'  Warning Erreur: {str(e)[:80]}')
 
     return aos
 
@@ -347,7 +441,7 @@ def scraper_source(source):
 # ── Sauvegarde Supabase ───────────────────────────────────────────────────────
 def sauvegarder_supabase(aos):
     if not SUPABASE_URL or not SUPABASE_KEY:
-        print('❌ Clés Supabase manquantes')
+        print('ERREUR Cles Supabase manquantes')
         return 0
     try:
         supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
@@ -358,29 +452,29 @@ def sauvegarder_supabase(aos):
                     ao, on_conflict='titre,organisme'
                 ).execute()
                 count += 1
-                print(f'  💾 {ao["titre"][:60]}... (score: {ao["pertinence"]})')
+                print(f'  Sauvegarde: {ao["titre"][:60]}... (score: {ao["pertinence"]})')
             except Exception as e:
-                print(f'  ❌ Erreur upsert: {e}')
+                print(f'  ERREUR upsert: {e}')
         return count
     except Exception as e:
-        print(f'❌ Connexion Supabase: {e}')
+        print(f'ERREUR Connexion Supabase: {e}')
         return 0
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 def main():
-    print(f'\n🚀 ErgoWatch Scraper Maroc — {datetime.now().strftime("%d/%m/%Y %H:%M")}')
-    print(f'🔍 {len(MOTS_CLES_PRINCIPAUX)} mots-clés principaux + {len(MOTS_CLES_SECONDAIRES)} secondaires')
-    print(f'📡 {len(SOURCES)} sources à scraper\n')
+    print(f'\nErgoWatch Scraper Maroc — {datetime.now().strftime("%d/%m/%Y %H:%M")}')
+    print(f'Mots-cles: {len(MOTS_CLES_PRINCIPAUX)} principaux + {len(MOTS_CLES_SECONDAIRES)} secondaires')
+    print(f'Sources: {len(SOURCES)} sources a scraper\n')
 
     tous_aos = []
 
     for source in SOURCES:
-        print(f'→ Scraping {source["nom"]}...')
+        print(f'Scraping {source["nom"]}...')
         aos = scraper_source(source)
         tous_aos.extend(aos)
 
-    # Dédoublonner par titre
+    # Dedoublonner par titre
     vus = set()
     aos_uniques = []
     for ao in tous_aos:
@@ -392,17 +486,17 @@ def main():
     # Trier par pertinence
     aos_uniques.sort(key=lambda x: x['pertinence'], reverse=True)
 
-    print(f'\n📊 {len(aos_uniques)} AO uniques trouvés')
-    print(f'🎯 Top pertinences: {[ao["pertinence"] for ao in aos_uniques[:5]]}')
+    print(f'\nTotal: {len(aos_uniques)} AO uniques trouves')
+    print(f'Top pertinences: {[ao["pertinence"] for ao in aos_uniques[:5]]}')
 
     if aos_uniques:
-        print(f'\n💾 Sauvegarde dans Supabase...')
+        print(f'\nSauvegarde dans Supabase...')
         saved = sauvegarder_supabase(aos_uniques)
-        print(f'✅ {saved}/{len(aos_uniques)} AO sauvegardés')
+        print(f'OK {saved}/{len(aos_uniques)} AO sauvegardes')
     else:
-        print('\n⚠️ Aucun AO trouvé — les sources sont peut-être inaccessibles')
+        print('\nAucun AO trouve — les sources sont peut-etre inaccessibles')
 
-    print('\n🏁 Scraping terminé !')
+    print('\nScraping termine!')
 
 
 if __name__ == '__main__':
