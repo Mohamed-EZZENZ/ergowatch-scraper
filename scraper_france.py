@@ -151,17 +151,52 @@ def scraper_boamp():
             records = data.get('results', [])
             logger.info(f"  BOAMP '{terme}' → {len(records)} avis")
 
-            for r in records:
-                # Chercher le titre dans plusieurs champs possibles
-                objet = (r.get('objet') or r.get('intitule') or
-                         r.get('libelle') or r.get('titre') or '')
-                organisme = (r.get('nomacheteur') or r.get('acheteur') or
-                             r.get('pouvoir_adjudicateur') or '')
+            # DEBUG : afficher les champs réels du 1er enregistrement
+            if records and terme == 'ergonomie':
+                sample = records[0]
+                logger.info(f"  🔑 Champs disponibles: {list(sample.keys())}")
+                for k in list(sample.keys())[:10]:
+                    logger.info(f"    {k} = {str(sample.get(k,''))[:100]}")
 
-                if not objet or len(objet) < 10:
+            for r in records:
+                # Chercher le titre — essayer tous les noms de champs possibles
+                objet = ''
+                for field in ['objet', 'intitule', 'libelle', 'titre',
+                              'objet_marche', 'description', 'denomination',
+                              'libelle_marche', 'marche', 'objet_consultation']:
+                    val = r.get(field, '')
+                    if val and len(str(val)) > 10:
+                        objet = str(val)
+                        break
+
+                # Fallback : prendre le plus long champ texte disponible
+                if not objet:
+                    for k, v in r.items():
+                        if isinstance(v, str) and len(v) > 20:
+                            objet = v
+                            break
+
+                organisme = ''
+                for field in ['nomacheteur', 'acheteur', 'pouvoir_adjudicateur',
+                              'acheteur_nom', 'entite_adjudicatrice', 'organisme']:
+                    val = r.get(field, '')
+                    if val:
+                        organisme = str(val)
+                        break
+
+                if not objet or len(objet) < 5:
                     continue
 
                 score, mots = calculer_pertinence(objet, '', organisme)
+
+                # Si le score est 0 mais que le terme de recherche est pertinent,
+                # on donne un score minimum (BOAMP a déjà filtré par pertinence)
+                if score == 0 and terme in ['ergonomie', 'ergonome', 'ergonomiste']:
+                    score = 40
+                    mots = [terme]
+                elif score == 0:
+                    score = 25
+                    mots = [terme]
 
                 if score < 20:
                     continue
