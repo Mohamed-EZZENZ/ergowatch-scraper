@@ -29,8 +29,11 @@ logger = logging.getLogger(__name__)
 # ============================================================
 # CONFIGURATION SUPABASE
 # ============================================================
-SUPABASE_URL = os.environ.get('SUPABASE_URL', '')
-SUPABASE_SERVICE_KEY = os.environ.get('SUPABASE_SERVICE_KEY', '')
+SUPABASE_URL = os.environ.get('SUPABASE_URL', '').strip().replace('\n', '').replace('\r', '')
+SUPABASE_SERVICE_KEY = os.environ.get('SUPABASE_SERVICE_KEY', '').strip().replace('\n', '').replace('\r', '')
+
+# Log pour diagnostic
+logger.info(f"🔗 Supabase URL: {SUPABASE_URL[:50]}..." if SUPABASE_URL else "❌ SUPABASE_URL vide!")
 
 # ============================================================
 # MOTS-CLÉS ERGONOMIE (France)
@@ -212,9 +215,13 @@ def scraper_boamp():
                     except Exception:
                         budget = str(montant_raw)[:50]
 
-                # Région
-                region = (r.get('region') or r.get('lieu_execution') or
-                          r.get('departement') or r.get('code_departement') or 'France')
+                # Région — champ réel = code_departement (liste) ou perimetre
+                region_raw = (r.get('perimetre') or r.get('code_departement') or
+                              r.get('region') or r.get('lieu_execution') or 'France')
+                if isinstance(region_raw, list):
+                    region = ', '.join(str(x) for x in region_raw) or 'France'
+                else:
+                    region = str(region_raw) if region_raw else 'France'
 
                 # Date publication
                 date_pub = (r.get('dateparution') or r.get('date_publication') or
@@ -226,7 +233,7 @@ def scraper_boamp():
 
                 # URL — construire depuis l'ID si pas de champ url direct
                 idweb = (r.get('idweb') or r.get('id') or r.get('numero') or '')
-                url_source = (r.get('urlsource') or r.get('url') or r.get('lien') or '')
+                url_source = (r.get('url_avis') or r.get('urlsource') or r.get('url') or r.get('lien') or '')
                 if not url_source and idweb:
                     url_source = f"https://www.boamp.fr/avis/detail/{idweb}"
                 if not url_source:
