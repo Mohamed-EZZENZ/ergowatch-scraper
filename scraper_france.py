@@ -134,25 +134,31 @@ def scraper_boamp():
 
     for terme in TERMES_BOAMP:
         try:
+            # Requête minimale — pas de select ni order_by pour éviter les 400
             params = {
                 'q': terme,
                 'limit': 50,
-                'order_by': 'dateparution desc',
-                'select': 'idweb,objet,nomacheteur,dateparution,datelimitereponse,montant,urlsource,nature,typeavis,region,departement',
             }
 
             response = requests.get(BASE_URL, params=params, timeout=30)
-            response.raise_for_status()
+
+            if response.status_code != 200:
+                logger.warning(f"  BOAMP '{terme}' — HTTP {response.status_code}: {response.text[:200]}")
+                continue
+
             data = response.json()
 
             records = data.get('results', [])
             logger.info(f"  BOAMP '{terme}' → {len(records)} avis")
 
             for r in records:
-                objet = r.get('objet', '')
-                organisme = r.get('nomacheteur', '')
+                # Chercher le titre dans plusieurs champs possibles
+                objet = (r.get('objet') or r.get('intitule') or
+                         r.get('libelle') or r.get('titre') or '')
+                organisme = (r.get('nomacheteur') or r.get('acheteur') or
+                             r.get('pouvoir_adjudicateur') or '')
 
-                if not objet:
+                if not objet or len(objet) < 10:
                     continue
 
                 score, mots = calculer_pertinence(objet, '', organisme)
@@ -160,42 +166,66 @@ def scraper_boamp():
                 if score < 20:
                     continue
 
-                # Récupérer le budget
+                # Budget — chercher dans plusieurs champs possibles
                 budget = None
-                montant = r.get('montant')
-                if montant:
+                montant_raw = (r.get('montant') or r.get('valeur_estimee') or
+                               r.get('valeur') or None)
+                if montant_raw:
                     try:
-                        val = float(str(montant).replace(',', '.'))
+                        val = float(str(montant_raw).replace(',', '.').replace(' ', ''))
                         budget = f"{val:,.0f} €".replace(',', ' ')
                     except Exception:
-                        budget = str(montant)
+                        budget = str(montant_raw)[:50]
 
                 # Région
-                region = r.get('region', '') or r.get('departement', '') or 'France'
+                region = (r.get('region') or r.get('lieu_execution') or
+                          r.get('departement') or r.get('code_departement') or 'France')
 
-                # URL source
-                url_source = r.get('urlsource', '')
+                # Date publication
+                date_pub = (r.get('dateparution') or r.get('date_publication') or
+                            r.get('date_parution') or date.today().isoformat())
+
+                # Date limite
+                date_lim = (r.get('datelimitereponse') or r.get('date_limite') or
+                            r.get('date_limite_reponse') or None)
+
+                # URL — construire depuis l'ID si pas de champ url direct
+                idweb = (r.get('idweb') or r.get('id') or r.get('numero') or '')
+                url_source = (r.get('urlsource') or r.get('url') or r.get('lien') or '')
+                if not url_source and idweb:
+                    url_source = f"https://www.boamp.fr/avis/detail/{idweb}"
                 if not url_source:
-                    idweb = r.get('idweb', '')
-                    if idweb:
-                        url_source = f"https://www.boamp.fr/avis/detail/{idweb}"
+                    url_source = 'https://www.boamp.fr'
+
+                # Description
+                nature = r.get('nature', '')
+                typeavis = r.get('typeavis', '')
+                desc = f"Marché public BOAMP"
+                if nature:
+                    desc += f" - {nature}"
+                if typeavis:
+                    desc += f" - {typeavis}"
 
                 ao = {
                     'titre': objet[:500],
                     'organisme': organisme[:200] if organisme else 'Non précisé',
-                    'date_publication': r.get('dateparution'),
-                    'date_limite': r.get('datelimitereponse'),
+                    'date_publication': str(date_pub)[:10] if date_pub else date.today().isoformat(),
+                    'date_limite': str(date_lim)[:10] if date_lim else None,
                     'budget': budget,
                     'pertinence': score,
                     'mots_cles': mots,
                     'statut': 'Ouvert',
                     'source': 'BOAMP',
-                    'url': url_source or 'https://www.boamp.fr',
-                    'description': f"Marché public - {r.get('nature', '')} - {r.get('typeavis', '')}",
-                    'wilaya': region[:100] if region else 'France',
-                    'reference': r.get('idweb', '')[:50] if r.get('idweb') else '',
+                    'url': url_source,
+                    'description': desc,
+                    'wilaya': str(region)[:100] if region else 'France',
+                    'reference': str(idweb)[:50] if idweb else '',
                 }
                 resultats.append(ao)
+
+                # Log le premier résultat pour debug
+                if len(resultats) == 1:
+                    logger.info(f"  🔍 Premier AO trouvé: {objet[:80]}")
 
             time.sleep(0.5)  # Respecter l'API
 
