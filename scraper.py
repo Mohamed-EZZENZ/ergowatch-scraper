@@ -33,7 +33,6 @@ MOTS_CLES_PRINCIPAUX = [
     'audit ergonomique', 'diagnostic ergonomique',
     'formation ergonomie', 'sensibilisation ergonomie',
     # Versions avec accents aussi
-    'ergonomie', 'ergonomique',
     'accessibilité', 'accessibilite',
     'santé au travail', 'sante au travail',
     'prévention', 'prevention',
@@ -56,29 +55,92 @@ MOTS_CLES_SECONDAIRES = [
     'évaluation', 'aménagement', 'télétravail'
 ]
 
-# ── Sources — URLs corrigees et INCVT ajoute ─────────────────────────────────
+# Mots-cles pour recherche directe sur marchespublics.gov.ma
+RECHERCHES_PORTAIL = [
+    'ergonomie',
+    'conditions de travail',
+    'facteurs humains',
+    'accessibilite',
+    'TMS troubles',
+    'prevention risques professionnels',
+    'amenagement poste travail',
+    'sante securite travail',
+    'qualite vie travail',
+    'audit securite',
+    'formation securite',
+    'accessibilite numerique',
+    'UX interface',
+]
+
+# ── Sources ───────────────────────────────────────────────────────────────────
 SOURCES = [
 
-    # PORTAIL NATIONAL
+    # ═══════════════════════════════════════════════════════════
+    # PORTAIL NATIONAL — recherches par mots-cles (maximum coverage)
+    # ═══════════════════════════════════════════════════════════
     {
         'nom': 'Marches Publics Maroc — Portail National',
         'url': 'https://www.marchespublics.gov.ma/pmmp/appelsoffres.html',
         'source_id': 'marchespublics.gov.ma'
     },
     {
-        'nom': 'Marches Publics Maroc — Recherche Ergonomie',
+        'nom': 'Marches Publics — Recherche: ergonomie',
         'url': 'https://www.marchespublics.gov.ma/pmmp/marches.html',
         'source_id': 'marchespublics.gov.ma',
         'params': {'typeMarche': 'AO', 'motsCles': 'ergonomie'}
     },
     {
-        'nom': 'Marches Publics Maroc — Recherche Sante Travail',
+        'nom': 'Marches Publics — Recherche: conditions de travail',
         'url': 'https://www.marchespublics.gov.ma/pmmp/marches.html',
         'source_id': 'marchespublics.gov.ma',
-        'params': {'typeMarche': 'AO', 'motsCles': 'sante travail accessibilite'}
+        'params': {'typeMarche': 'AO', 'motsCles': 'conditions de travail'}
+    },
+    {
+        'nom': 'Marches Publics — Recherche: facteurs humains',
+        'url': 'https://www.marchespublics.gov.ma/pmmp/marches.html',
+        'source_id': 'marchespublics.gov.ma',
+        'params': {'typeMarche': 'AO', 'motsCles': 'facteurs humains'}
+    },
+    {
+        'nom': 'Marches Publics — Recherche: accessibilite',
+        'url': 'https://www.marchespublics.gov.ma/pmmp/marches.html',
+        'source_id': 'marchespublics.gov.ma',
+        'params': {'typeMarche': 'AO', 'motsCles': 'accessibilite'}
+    },
+    {
+        'nom': 'Marches Publics — Recherche: sante securite travail',
+        'url': 'https://www.marchespublics.gov.ma/pmmp/marches.html',
+        'source_id': 'marchespublics.gov.ma',
+        'params': {'typeMarche': 'AO', 'motsCles': 'sante securite travail'}
+    },
+    {
+        'nom': 'Marches Publics — Recherche: prevention risques',
+        'url': 'https://www.marchespublics.gov.ma/pmmp/marches.html',
+        'source_id': 'marchespublics.gov.ma',
+        'params': {'typeMarche': 'AO', 'motsCles': 'prevention risques professionnels'}
+    },
+    {
+        'nom': 'Marches Publics — Recherche: amenagement poste travail',
+        'url': 'https://www.marchespublics.gov.ma/pmmp/marches.html',
+        'source_id': 'marchespublics.gov.ma',
+        'params': {'typeMarche': 'AO', 'motsCles': 'amenagement poste travail'}
+    },
+    {
+        'nom': 'Marches Publics — Recherche: audit securite',
+        'url': 'https://www.marchespublics.gov.ma/pmmp/marches.html',
+        'source_id': 'marchespublics.gov.ma',
+        'params': {'typeMarche': 'AO', 'motsCles': 'audit securite formation'}
+    },
+    {
+        'nom': 'Marches Publics — Recherche: accessibilite numerique',
+        'url': 'https://www.marchespublics.gov.ma/pmmp/marches.html',
+        'source_id': 'marchespublics.gov.ma',
+        'params': {'typeMarche': 'AO', 'motsCles': 'accessibilite numerique UX'}
     },
 
+    # ═══════════════════════════════════════════════════════════
     # INCVT — Institut National des Conditions de Vie au Travail
+    # ═══════════════════════════════════════════════════════════
     {
         'nom': 'INCVT — Appels d\'offres',
         'url': 'https://www.incvt.ma/appels-offres',
@@ -95,7 +157,9 @@ SOURCES = [
         'source_id': 'incvt.ma'
     },
 
+    # ═══════════════════════════════════════════════════════════
     # MINISTERES
+    # ═══════════════════════════════════════════════════════════
     {
         'nom': 'Ministere de la Sante',
         'url': 'https://www.sante.gov.ma/AppelsOffres/Pages/AppelsOffres.aspx',
@@ -107,9 +171,9 @@ SOURCES = [
         'source_id': 'travail.gov.ma'
     },
     {
-        'nom': 'Ministere de l\'Emploi',
-        'url': 'https://www.emploi.gov.ma/index.php/fr/appels-d-offres',
-        'source_id': 'emploi.gov.ma'
+        'nom': 'Ministere de l\'Emploi (MIEPEEC)',
+        'url': 'https://miepeec.gov.ma/appels-doffres/',
+        'source_id': 'miepeec.gov.ma'
     },
     {
         'nom': 'Ministere des Finances',
@@ -132,12 +196,24 @@ SOURCES = [
         'source_id': 'justice.gov.ma'
     },
     {
+        'nom': 'Ministere de l\'Industrie et Commerce',
+        'url': 'https://www.mcinet.gov.ma/fr/appels-doffres',
+        'source_id': 'mcinet.gov.ma'
+    },
+    {
+        'nom': 'Ministere du Transport et Logistique',
+        'url': 'https://www.mtl.gov.ma/fr/appels-doffres',
+        'source_id': 'mtl.gov.ma'
+    },
+    {
         'nom': 'Haut-Commissariat au Plan',
         'url': 'https://www.hcp.ma/Appels-d-offres_r53.html',
         'source_id': 'hcp.ma'
     },
 
+    # ═══════════════════════════════════════════════════════════
     # ORGANISMES SOCIAUX
+    # ═══════════════════════════════════════════════════════════
     {
         'nom': 'CNSS — Securite Sociale',
         'url': 'https://www.cnss.ma/fr/appels-doffres',
@@ -155,8 +231,8 @@ SOURCES = [
     },
     {
         'nom': 'ANAPEC — Emploi',
-        'url': 'https://www.anapec.org/appels-offres',
-        'source_id': 'anapec.org'
+        'url': 'https://anapec.ma/appels-offres',
+        'source_id': 'anapec.ma'
     },
     {
         'nom': 'RCAR — Retraite',
@@ -165,11 +241,13 @@ SOURCES = [
     },
     {
         'nom': 'CMR — Caisse Marocaine Retraites',
-        'url': 'https://www.cmr.ma/fr/appels-offres',
-        'source_id': 'cmr.ma'
+        'url': 'https://www.cmr.gov.ma/fr/appels-offres',
+        'source_id': 'cmr.gov.ma'
     },
 
+    # ═══════════════════════════════════════════════════════════
     # GRANDES ENTREPRISES PUBLIQUES
+    # ═══════════════════════════════════════════════════════════
     {
         'nom': 'OCP Group',
         'url': 'https://www.ocpgroup.ma/fr/fournisseurs/appels-doffres',
@@ -216,7 +294,9 @@ SOURCES = [
         'source_id': 'ancfcc.gov.ma'
     },
 
-    # NUMERIQUE
+    # ═══════════════════════════════════════════════════════════
+    # NUMERIQUE & TELECOMS
+    # ═══════════════════════════════════════════════════════════
     {
         'nom': 'ADD — Agence du Developpement Digital',
         'url': 'https://www.add.gov.ma/appels-doffres',
@@ -224,16 +304,13 @@ SOURCES = [
     },
     {
         'nom': 'ANRT — Regulation Telecoms',
-        'url': 'https://www.anrt.net.ma/fr/appels-doffres',
-        'source_id': 'anrt.net.ma'
-    },
-    {
-        'nom': 'DEPF — Etudes et Previsions',
-        'url': 'https://www.finances.gov.ma/fr/Pages/recherche.aspx?k=ergonomie',
-        'source_id': 'finances.gov.ma'
+        'url': 'https://www.anrt.ma/fr/appels-doffres',
+        'source_id': 'anrt.ma'
     },
 
+    # ═══════════════════════════════════════════════════════════
     # CHU & HOPITAUX
+    # ═══════════════════════════════════════════════════════════
     {
         'nom': 'CHU Ibn Rochd — Casablanca',
         'url': 'https://www.chuibnrochd.ma/appels-offres/',
@@ -246,21 +323,23 @@ SOURCES = [
     },
     {
         'nom': 'CHU Hassan II — Fes',
-        'url': 'https://www.chufes.ma/index.php/appels-d-offres',
-        'source_id': 'chufes.ma'
+        'url': 'https://www.chu-fes.ma/index.php/appels-d-offres',
+        'source_id': 'chu-fes.ma'
     },
     {
         'nom': 'CHU Ibn Sina — Rabat',
-        'url': 'https://www.churoyal.ma/fr/appels-doffres',
-        'source_id': 'churoyal.ma'
+        'url': 'https://churabat.ma/appels-doffres/',
+        'source_id': 'churabat.ma'
     },
     {
-        'nom': 'CHU Mohammed VI — Agadir',
-        'url': 'https://www.chuagadir.ma/appels-offres',
-        'source_id': 'chuagadir.ma'
+        'nom': 'CHU Souss-Massa — Agadir',
+        'url': 'https://www.chusm.ma/appels-offres/',
+        'source_id': 'chusm.ma'
     },
 
-    # UNIVERSITES
+    # ═══════════════════════════════════════════════════════════
+    # UNIVERSITES & RECHERCHE
+    # ═══════════════════════════════════════════════════════════
     {
         'nom': 'Universite Mohammed V — Rabat',
         'url': 'https://www.um5.ac.ma/um5/fr/appels-offres',
@@ -286,6 +365,201 @@ SOURCES = [
         'url': 'https://www.uit.ac.ma/fr/appels-offres',
         'source_id': 'uit.ac.ma'
     },
+    {
+        'nom': 'IAV Hassan II — Agronomie',
+        'url': 'https://www.iav.ac.ma/fr/appels-offres',
+        'source_id': 'iav.ac.ma'
+    },
+    {
+        'nom': 'INRA Maroc — Recherche Agronomique',
+        'url': 'https://www.inra.org.ma/fr/appels-offres',
+        'source_id': 'inra.org.ma'
+    },
+    {
+        'nom': 'EHTP — Ecole Hassania Travaux Publics',
+        'url': 'https://www.ehtp.ac.ma/appels-offres',
+        'source_id': 'ehtp.ac.ma'
+    },
+    {
+        'nom': 'INPT — Institut National Postes et Telecoms',
+        'url': 'https://www.inpt.ac.ma/fr/appels-offres',
+        'source_id': 'inpt.ac.ma'
+    },
+
+    # ═══════════════════════════════════════════════════════════
+    # AERONAUTIQUE & DEFENSE
+    # ═══════════════════════════════════════════════════════════
+    {
+        'nom': 'GIMAS — Groupement Industrie Marocaine Aeronautique',
+        'url': 'https://www.gimas.org/fr/appels-doffres',
+        'source_id': 'gimas.org'
+    },
+    {
+        'nom': 'ONDA — Appels offres fournisseurs',
+        'url': 'https://www.onda.ma/fr/fournisseurs',
+        'source_id': 'onda.ma'
+    },
+    {
+        'nom': 'RAM Handling — Appels offres',
+        'url': 'https://www.royalairmaroc.com/ma-fr/fournisseurs',
+        'source_id': 'royalairmaroc.com'
+    },
+    {
+        'nom': 'OFPPT — Formation Aeronautique',
+        'url': 'https://www.ofppt.ma/fr/appels-doffres',
+        'source_id': 'ofppt.ma'
+    },
+
+    # ═══════════════════════════════════════════════════════════
+    # PORTS & LOGISTIQUE MARITIME
+    # ═══════════════════════════════════════════════════════════
+    {
+        'nom': 'Marsa Maroc — Ports',
+        'url': 'https://www.marsamaroc.co.ma/fr/appels-doffres',
+        'source_id': 'marsamaroc.co.ma'
+    },
+    {
+        'nom': 'ANP — Agence Nationale des Ports',
+        'url': 'https://www.anp.org.ma/fr/appels-doffres',
+        'source_id': 'anp.org.ma'
+    },
+    {
+        'nom': 'Tanger Med Port Authority',
+        'url': 'https://www.tangermed.ma/fr/fournisseurs/appels-doffres',
+        'source_id': 'tangermed.ma'
+    },
+    {
+        'nom': 'TMSA — Tanger Med Special Agency',
+        'url': 'https://www.tmsa.ma/fr/appels-doffres',
+        'source_id': 'tmsa.ma'
+    },
+    {
+        'nom': 'PORTNET — Logistique portuaire',
+        'url': 'https://www.portnet.ma/appels-offres',
+        'source_id': 'portnet.ma'
+    },
+
+    # ═══════════════════════════════════════════════════════════
+    # AGRICULTURE & AGROALIMENTAIRE
+    # ═══════════════════════════════════════════════════════════
+    {
+        'nom': 'ADA — Agence Developpement Agricole',
+        'url': 'https://www.ada.gov.ma/fr/appels-doffres',
+        'source_id': 'ada.gov.ma'
+    },
+    {
+        'nom': 'ONSSA — Securite Sanitaire Produits Alimentaires',
+        'url': 'https://www.onssa.gov.ma/fr/appels-doffres',
+        'source_id': 'onssa.gov.ma'
+    },
+    {
+        'nom': 'ONICL — Interprofession Cereales',
+        'url': 'https://www.onicl.org.ma/portal/fr/appels-doffres',
+        'source_id': 'onicl.org.ma'
+    },
+    {
+        'nom': 'ORMVA Souss-Massa',
+        'url': 'https://www.ormvasm.ma/fr/appels-doffres',
+        'source_id': 'ormvasm.ma'
+    },
+    {
+        'nom': 'ORMVA Gharb',
+        'url': 'https://www.ormvag.ma/fr/appels-doffres',
+        'source_id': 'ormvag.ma'
+    },
+    {
+        'nom': 'Cosumar — Sucre',
+        'url': 'https://www.cosumar.co.ma/fr/appels-doffres',
+        'source_id': 'cosumar.co.ma'
+    },
+    {
+        'nom': 'Centrale Danone Maroc',
+        'url': 'https://www.centraledanone.ma/fr/fournisseurs',
+        'source_id': 'centraledanone.ma'
+    },
+
+    # ═══════════════════════════════════════════════════════════
+    # BTP & INFRASTRUCTURE
+    # ═══════════════════════════════════════════════════════════
+    {
+        'nom': 'ADM — Autoroutes du Maroc',
+        'url': 'https://www.adm.co.ma/fr/fournisseurs/appels-doffres',
+        'source_id': 'adm.co.ma'
+    },
+    {
+        'nom': 'Al Omrane — Habitat',
+        'url': 'https://www.alomrane.ma/fr/appels-doffres',
+        'source_id': 'alomrane.ma'
+    },
+    {
+        'nom': 'MedZ — Zones Industrielles',
+        'url': 'https://www.medz.ma/fr/appels-doffres',
+        'source_id': 'medz.ma'
+    },
+    {
+        'nom': 'Casa Amenagement',
+        'url': 'https://www.casaamenagement.ma/appels-doffres',
+        'source_id': 'casaamenagement.ma'
+    },
+    {
+        'nom': 'FNBTP — Federation Nationale BTP',
+        'url': 'https://www.fnbtp.ma/appels-doffres',
+        'source_id': 'fnbtp.ma'
+    },
+    {
+        'nom': 'AAVBR — Agence Amenagement Vallee Bou Regreg',
+        'url': 'https://www.aavbr.ma/fr/appels-doffres',
+        'source_id': 'aavbr.ma'
+    },
+
+    # ═══════════════════════════════════════════════════════════
+    # INDUSTRIE AUTOMOBILE
+    # ═══════════════════════════════════════════════════════════
+    {
+        'nom': 'AMICA — Industrie Auto Maroc',
+        'url': 'https://www.amica.ma/appels-doffres',
+        'source_id': 'amica.ma'
+    },
+    {
+        'nom': 'ANPME — Agence PME',
+        'url': 'https://www.anpme.ma/fr/appels-doffres',
+        'source_id': 'anpme.ma'
+    },
+    {
+        'nom': 'Renault Maroc',
+        'url': 'https://www.group.renault.com/nos-engagements/achats/',
+        'source_id': 'renault.com'
+    },
+
+    # ═══════════════════════════════════════════════════════════
+    # COLLECTIVITES & INSTITUTIONS
+    # ═══════════════════════════════════════════════════════════
+    {
+        'nom': 'Region Casablanca-Settat',
+        'url': 'https://www.casablanca-settat.ma/fr/appels-doffres',
+        'source_id': 'casablanca-settat.ma'
+    },
+    {
+        'nom': 'Commune de Casablanca',
+        'url': 'https://www.casablanca.ma/fr/appels-doffres',
+        'source_id': 'casablanca.ma'
+    },
+    {
+        'nom': 'Commune de Rabat',
+        'url': 'https://www.rabat.ma/fr/appels-doffres',
+        'source_id': 'rabat.ma'
+    },
+    {
+        'nom': 'AMEE — Agence Maitrise Energie',
+        'url': 'https://www.amee.ma/fr/appels-doffres',
+        'source_id': 'amee.ma'
+    },
+    {
+        'nom': 'OFPPT — Formation Professionnelle',
+        'url': 'https://www.ofppt.ma/fr/appels-doffres',
+        'source_id': 'ofppt.ma'
+    },
+
 ]
 
 # ── Session HTTP avec retry automatique ──────────────────────────────────────
