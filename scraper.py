@@ -1,777 +1,275 @@
+"""
+ErgoWatch Maroc — Scraper v2
+============================
+Nouveautés par rapport à la v1 :
+  1. Nettoyage automatique des offres expirées (marquées 'Clôturé')
+  2. Détection des VRAIS nouveaux AO (comparaison avec la base)
+  3. Email envoyé UNIQUEMENT s'il y a du nouveau, avec le détail des offres
+  4. Recherche élargie (plus de mots-clés, plus de pages)
+  5. Logs détaillés pour diagnostiquer ce qui est réellement trouvé
+"""
+
 import os
+import re
+import time
+import smtplib
+import logging
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from datetime import datetime, date
+
 import requests
-from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
 from bs4 import BeautifulSoup
-from supabase import create_client
-from datetime import datetime, timedelta
-import random
-import urllib3
+from supabase import create_client, Client
 
-# Desactiver les avertissements SSL
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY")
+EMAIL_USER = os.getenv("EMAIL_USER")
+EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
+EMAIL_DESTINATAIRE = os.getenv("EMAIL_DESTINATAIRE")
 
-SUPABASE_URL = os.environ.get('SUPABASE_URL', '')
-SUPABASE_KEY = os.environ.get('SUPABASE_SERVICE_KEY', '')
-
-# ── Mots-cles ────────────────────────────────────────────────────────────────
-MOTS_CLES_PRINCIPAUX = [
-    'ergonomie', 'ergonomique', 'ergo',
-    'facteurs humains', 'human factors',
-    'accessibilite', 'accessible',
-    'UX', 'experience utilisateur', 'interface utilisateur',
-    'sante au travail', 'medecine du travail',
-    'TMS', 'troubles musculo', 'musculosquelettique',
-    'poste de travail', 'postes de travail',
-    'conditions de travail', 'qualite de vie au travail', 'QVT',
-    'prevention des risques', 'risques professionnels',
-    'amenagement du travail', 'organisation du travail',
-    'charge de travail', 'penibilite',
-    'handicap', 'PMR', 'personnes a mobilite reduite',
-    'WCAG', 'accessibilite numerique',
-    'conception inclusive', 'design inclusif',
-    'audit ergonomique', 'diagnostic ergonomique',
-    'formation ergonomie', 'sensibilisation ergonomie',
-    # Versions avec accents aussi
-    'accessibilité', 'accessibilite',
-    'santé au travail', 'sante au travail',
-    'prévention', 'prevention',
-    'qualité de vie', 'qualite de vie',
-    'pénibilité', 'penibilite'
-]
-
-MOTS_CLES_SECONDAIRES = [
-    'bien-etre', 'confort', 'securite au travail',
-    'DUERP', 'document unique', 'evaluation des risques',
-    'amenagement des locaux', 'espaces de travail',
-    'mobilier ergonomique', 'siege ergonomique',
-    'eclairage', 'bruit au travail', 'ambiance thermique',
-    'teletravail', 'travail sur ecran',
-    'formation securite', 'prevention accidents',
-    'analyse des risques', 'etude ergonomique',
-    'conseil ergonomique', 'intervention ergonomique',
-    # Versions avec accents
-    'bien-être', 'sécurité', 'prévention',
-    'évaluation', 'aménagement', 'télétravail'
-]
-
-# Mots-cles pour recherche directe sur marchespublics.gov.ma
-RECHERCHES_PORTAIL = [
-    'ergonomie',
-    'conditions de travail',
-    'facteurs humains',
-    'accessibilite',
-    'TMS troubles',
-    'prevention risques professionnels',
-    'amenagement poste travail',
-    'sante securite travail',
-    'qualite vie travail',
-    'audit securite',
-    'formation securite',
-    'accessibilite numerique',
-    'UX interface',
-]
-
-# ── Sources ───────────────────────────────────────────────────────────────────
-SOURCES = [
-
-    # ═══════════════════════════════════════════════════════════
-    # PORTAIL NATIONAL — recherches par mots-cles (maximum coverage)
-    # ═══════════════════════════════════════════════════════════
-    {
-        'nom': 'Marches Publics Maroc — Portail National',
-        'url': 'https://www.marchespublics.gov.ma/pmmp/appelsoffres.html',
-        'source_id': 'marchespublics.gov.ma'
-    },
-    {
-        'nom': 'Marches Publics — Recherche: ergonomie',
-        'url': 'https://www.marchespublics.gov.ma/pmmp/marches.html',
-        'source_id': 'marchespublics.gov.ma',
-        'params': {'typeMarche': 'AO', 'motsCles': 'ergonomie'}
-    },
-    {
-        'nom': 'Marches Publics — Recherche: conditions de travail',
-        'url': 'https://www.marchespublics.gov.ma/pmmp/marches.html',
-        'source_id': 'marchespublics.gov.ma',
-        'params': {'typeMarche': 'AO', 'motsCles': 'conditions de travail'}
-    },
-    {
-        'nom': 'Marches Publics — Recherche: facteurs humains',
-        'url': 'https://www.marchespublics.gov.ma/pmmp/marches.html',
-        'source_id': 'marchespublics.gov.ma',
-        'params': {'typeMarche': 'AO', 'motsCles': 'facteurs humains'}
-    },
-    {
-        'nom': 'Marches Publics — Recherche: accessibilite',
-        'url': 'https://www.marchespublics.gov.ma/pmmp/marches.html',
-        'source_id': 'marchespublics.gov.ma',
-        'params': {'typeMarche': 'AO', 'motsCles': 'accessibilite'}
-    },
-    {
-        'nom': 'Marches Publics — Recherche: sante securite travail',
-        'url': 'https://www.marchespublics.gov.ma/pmmp/marches.html',
-        'source_id': 'marchespublics.gov.ma',
-        'params': {'typeMarche': 'AO', 'motsCles': 'sante securite travail'}
-    },
-    {
-        'nom': 'Marches Publics — Recherche: prevention risques',
-        'url': 'https://www.marchespublics.gov.ma/pmmp/marches.html',
-        'source_id': 'marchespublics.gov.ma',
-        'params': {'typeMarche': 'AO', 'motsCles': 'prevention risques professionnels'}
-    },
-    {
-        'nom': 'Marches Publics — Recherche: amenagement poste travail',
-        'url': 'https://www.marchespublics.gov.ma/pmmp/marches.html',
-        'source_id': 'marchespublics.gov.ma',
-        'params': {'typeMarche': 'AO', 'motsCles': 'amenagement poste travail'}
-    },
-    {
-        'nom': 'Marches Publics — Recherche: audit securite',
-        'url': 'https://www.marchespublics.gov.ma/pmmp/marches.html',
-        'source_id': 'marchespublics.gov.ma',
-        'params': {'typeMarche': 'AO', 'motsCles': 'audit securite formation'}
-    },
-    {
-        'nom': 'Marches Publics — Recherche: accessibilite numerique',
-        'url': 'https://www.marchespublics.gov.ma/pmmp/marches.html',
-        'source_id': 'marchespublics.gov.ma',
-        'params': {'typeMarche': 'AO', 'motsCles': 'accessibilite numerique UX'}
-    },
-
-    # ═══════════════════════════════════════════════════════════
-    # INCVT — Institut National des Conditions de Vie au Travail
-    # ═══════════════════════════════════════════════════════════
-    {
-        'nom': 'INCVT — Appels d\'offres',
-        'url': 'https://www.incvt.ma/appels-offres',
-        'source_id': 'incvt.ma'
-    },
-    {
-        'nom': 'INCVT — Actualites',
-        'url': 'https://www.incvt.ma/actualites',
-        'source_id': 'incvt.ma'
-    },
-    {
-        'nom': 'INCVT — Page principale',
-        'url': 'https://www.incvt.ma',
-        'source_id': 'incvt.ma'
-    },
-
-    # ═══════════════════════════════════════════════════════════
-    # MINISTERES
-    # ═══════════════════════════════════════════════════════════
-    {
-        'nom': 'Ministere de la Sante',
-        'url': 'https://www.sante.gov.ma/AppelsOffres/Pages/AppelsOffres.aspx',
-        'source_id': 'sante.gov.ma'
-    },
-    {
-        'nom': 'Ministere du Travail',
-        'url': 'https://www.travail.gov.ma/fr/appels-doffres',
-        'source_id': 'travail.gov.ma'
-    },
-    {
-        'nom': 'Ministere de l\'Emploi (MIEPEEC)',
-        'url': 'https://miepeec.gov.ma/appels-doffres/',
-        'source_id': 'miepeec.gov.ma'
-    },
-    {
-        'nom': 'Ministere des Finances',
-        'url': 'https://www.finances.gov.ma/fr/vous-orientez/Pages/appels-offres.aspx',
-        'source_id': 'finances.gov.ma'
-    },
-    {
-        'nom': 'Ministere de l\'Education Nationale',
-        'url': 'https://www.men.gov.ma/Ar/Pages/AppelOffre.aspx',
-        'source_id': 'men.gov.ma'
-    },
-    {
-        'nom': 'Ministere de l\'Interieur',
-        'url': 'https://www.interieur.gov.ma/fr/appels-doffres',
-        'source_id': 'interieur.gov.ma'
-    },
-    {
-        'nom': 'Ministere de la Justice',
-        'url': 'https://www.justice.gov.ma/fr/appels-offres.aspx',
-        'source_id': 'justice.gov.ma'
-    },
-    {
-        'nom': 'Ministere de l\'Industrie et Commerce',
-        'url': 'https://www.mcinet.gov.ma/fr/appels-doffres',
-        'source_id': 'mcinet.gov.ma'
-    },
-    {
-        'nom': 'Ministere du Transport et Logistique',
-        'url': 'https://www.mtl.gov.ma/fr/appels-doffres',
-        'source_id': 'mtl.gov.ma'
-    },
-    {
-        'nom': 'Haut-Commissariat au Plan',
-        'url': 'https://www.hcp.ma/Appels-d-offres_r53.html',
-        'source_id': 'hcp.ma'
-    },
-
-    # ═══════════════════════════════════════════════════════════
-    # ORGANISMES SOCIAUX
-    # ═══════════════════════════════════════════════════════════
-    {
-        'nom': 'CNSS — Securite Sociale',
-        'url': 'https://www.cnss.ma/fr/appels-doffres',
-        'source_id': 'cnss.ma'
-    },
-    {
-        'nom': 'CNSS — Appels offres alternatif',
-        'url': 'https://www.cnss.ma/fr/content/appels-doffres',
-        'source_id': 'cnss.ma'
-    },
-    {
-        'nom': 'ANAM — Assurance Maladie',
-        'url': 'https://www.anam.ma/appels-doffres/',
-        'source_id': 'anam.ma'
-    },
-    {
-        'nom': 'ANAPEC — Emploi',
-        'url': 'https://anapec.ma/appels-offres',
-        'source_id': 'anapec.ma'
-    },
-    {
-        'nom': 'RCAR — Retraite',
-        'url': 'https://www.rcar.ma/fr/appels-offres',
-        'source_id': 'rcar.ma'
-    },
-    {
-        'nom': 'CMR — Caisse Marocaine Retraites',
-        'url': 'https://www.cmr.gov.ma/fr/appels-offres',
-        'source_id': 'cmr.gov.ma'
-    },
-
-    # ═══════════════════════════════════════════════════════════
-    # GRANDES ENTREPRISES PUBLIQUES
-    # ═══════════════════════════════════════════════════════════
-    {
-        'nom': 'OCP Group',
-        'url': 'https://www.ocpgroup.ma/fr/fournisseurs/appels-doffres',
-        'source_id': 'ocpgroup.ma'
-    },
-    {
-        'nom': 'ONCF — Chemins de Fer',
-        'url': 'https://www.oncf.ma/fr/Entreprise/Fournisseurs/Appels-d-offres',
-        'source_id': 'oncf.ma'
-    },
-    {
-        'nom': 'ONEE — Electricite & Eau',
-        'url': 'https://www.one.org.ma/FR/pages/interne.asp?esp=1&id1=4&id2=18',
-        'source_id': 'one.org.ma'
-    },
-    {
-        'nom': 'CDG — Caisse de Depot et de Gestion',
-        'url': 'https://www.cdg.ma/fr/appels-doffres',
-        'source_id': 'cdg.ma'
-    },
-    {
-        'nom': 'RAM — Royal Air Maroc',
-        'url': 'https://www.royalairmaroc.com/ma-fr/fournisseurs/appels-offres',
-        'source_id': 'royalairmaroc.com'
-    },
-    {
-        'nom': 'ONDA — Aeroports du Maroc',
-        'url': 'https://www.onda.ma/fr/appels-doffres',
-        'source_id': 'onda.ma'
-    },
-    {
-        'nom': 'MASEN — Energie Solaire',
-        'url': 'https://www.masen.ma/fr/appels-offres',
-        'source_id': 'masen.ma'
-    },
-    {
-        'nom': 'Maroc Telecom',
-        'url': 'https://www.iam.ma/fr/appels-offres',
-        'source_id': 'iam.ma'
-    },
-    {
-        'nom': 'ANCFCC — Foncier',
-        'url': 'https://www.ancfcc.gov.ma/fr/appels-doffres',
-        'source_id': 'ancfcc.gov.ma'
-    },
-
-    # ═══════════════════════════════════════════════════════════
-    # NUMERIQUE & TELECOMS
-    # ═══════════════════════════════════════════════════════════
-    {
-        'nom': 'ADD — Agence du Developpement Digital',
-        'url': 'https://www.add.gov.ma/appels-doffres',
-        'source_id': 'add.gov.ma'
-    },
-    {
-        'nom': 'ANRT — Regulation Telecoms',
-        'url': 'https://www.anrt.ma/fr/appels-doffres',
-        'source_id': 'anrt.ma'
-    },
-
-    # ═══════════════════════════════════════════════════════════
-    # CHU & HOPITAUX
-    # ═══════════════════════════════════════════════════════════
-    {
-        'nom': 'CHU Ibn Rochd — Casablanca',
-        'url': 'https://www.chuibnrochd.ma/appels-offres/',
-        'source_id': 'chuibnrochd.ma'
-    },
-    {
-        'nom': 'CHU Mohammed VI — Marrakech',
-        'url': 'https://www.chumarrakech.ma/index.php/annonces/fournisseurs/appels-doffres',
-        'source_id': 'chumarrakech.ma'
-    },
-    {
-        'nom': 'CHU Hassan II — Fes',
-        'url': 'https://www.chu-fes.ma/index.php/appels-d-offres',
-        'source_id': 'chu-fes.ma'
-    },
-    {
-        'nom': 'CHU Ibn Sina — Rabat',
-        'url': 'https://churabat.ma/appels-doffres/',
-        'source_id': 'churabat.ma'
-    },
-    {
-        'nom': 'CHU Souss-Massa — Agadir',
-        'url': 'https://www.chusm.ma/appels-offres/',
-        'source_id': 'chusm.ma'
-    },
-
-    # ═══════════════════════════════════════════════════════════
-    # UNIVERSITES & RECHERCHE
-    # ═══════════════════════════════════════════════════════════
-    {
-        'nom': 'Universite Mohammed V — Rabat',
-        'url': 'https://www.um5.ac.ma/um5/fr/appels-offres',
-        'source_id': 'um5.ac.ma'
-    },
-    {
-        'nom': 'Universite Hassan II — Casablanca',
-        'url': 'https://www.univh2c.ma/fr/appels-doffres',
-        'source_id': 'univh2c.ma'
-    },
-    {
-        'nom': 'Universite Cadi Ayyad — Marrakech',
-        'url': 'https://www.uca.ma/fr/appels-offres',
-        'source_id': 'uca.ma'
-    },
-    {
-        'nom': 'Universite Sidi Mohamed Ben Abdellah — Fes',
-        'url': 'https://www.usmba.ac.ma/appels-offres',
-        'source_id': 'usmba.ac.ma'
-    },
-    {
-        'nom': 'Universite Ibn Tofail — Kenitra',
-        'url': 'https://www.uit.ac.ma/fr/appels-offres',
-        'source_id': 'uit.ac.ma'
-    },
-    {
-        'nom': 'IAV Hassan II — Agronomie',
-        'url': 'https://www.iav.ac.ma/fr/appels-offres',
-        'source_id': 'iav.ac.ma'
-    },
-    {
-        'nom': 'INRA Maroc — Recherche Agronomique',
-        'url': 'https://www.inra.org.ma/fr/appels-offres',
-        'source_id': 'inra.org.ma'
-    },
-    {
-        'nom': 'EHTP — Ecole Hassania Travaux Publics',
-        'url': 'https://www.ehtp.ac.ma/appels-offres',
-        'source_id': 'ehtp.ac.ma'
-    },
-    {
-        'nom': 'INPT — Institut National Postes et Telecoms',
-        'url': 'https://www.inpt.ac.ma/fr/appels-offres',
-        'source_id': 'inpt.ac.ma'
-    },
-
-    # ═══════════════════════════════════════════════════════════
-    # AERONAUTIQUE & DEFENSE
-    # ═══════════════════════════════════════════════════════════
-    {
-        'nom': 'GIMAS — Groupement Industrie Marocaine Aeronautique',
-        'url': 'https://www.gimas.org/fr/appels-doffres',
-        'source_id': 'gimas.org'
-    },
-    {
-        'nom': 'ONDA — Appels offres fournisseurs',
-        'url': 'https://www.onda.ma/fr/fournisseurs',
-        'source_id': 'onda.ma'
-    },
-    {
-        'nom': 'RAM Handling — Appels offres',
-        'url': 'https://www.royalairmaroc.com/ma-fr/fournisseurs',
-        'source_id': 'royalairmaroc.com'
-    },
-    {
-        'nom': 'OFPPT — Formation Aeronautique',
-        'url': 'https://www.ofppt.ma/fr/appels-doffres',
-        'source_id': 'ofppt.ma'
-    },
-
-    # ═══════════════════════════════════════════════════════════
-    # PORTS & LOGISTIQUE MARITIME
-    # ═══════════════════════════════════════════════════════════
-    {
-        'nom': 'Marsa Maroc — Ports',
-        'url': 'https://www.marsamaroc.co.ma/fr/appels-doffres',
-        'source_id': 'marsamaroc.co.ma'
-    },
-    {
-        'nom': 'ANP — Agence Nationale des Ports',
-        'url': 'https://www.anp.org.ma/fr/appels-doffres',
-        'source_id': 'anp.org.ma'
-    },
-    {
-        'nom': 'Tanger Med Port Authority',
-        'url': 'https://www.tangermed.ma/fr/fournisseurs/appels-doffres',
-        'source_id': 'tangermed.ma'
-    },
-    {
-        'nom': 'TMSA — Tanger Med Special Agency',
-        'url': 'https://www.tmsa.ma/fr/appels-doffres',
-        'source_id': 'tmsa.ma'
-    },
-    {
-        'nom': 'PORTNET — Logistique portuaire',
-        'url': 'https://www.portnet.ma/appels-offres',
-        'source_id': 'portnet.ma'
-    },
-
-    # ═══════════════════════════════════════════════════════════
-    # AGRICULTURE & AGROALIMENTAIRE
-    # ═══════════════════════════════════════════════════════════
-    {
-        'nom': 'ADA — Agence Developpement Agricole',
-        'url': 'https://www.ada.gov.ma/fr/appels-doffres',
-        'source_id': 'ada.gov.ma'
-    },
-    {
-        'nom': 'ONSSA — Securite Sanitaire Produits Alimentaires',
-        'url': 'https://www.onssa.gov.ma/fr/appels-doffres',
-        'source_id': 'onssa.gov.ma'
-    },
-    {
-        'nom': 'ONICL — Interprofession Cereales',
-        'url': 'https://www.onicl.org.ma/portal/fr/appels-doffres',
-        'source_id': 'onicl.org.ma'
-    },
-    {
-        'nom': 'ORMVA Souss-Massa',
-        'url': 'https://www.ormvasm.ma/fr/appels-doffres',
-        'source_id': 'ormvasm.ma'
-    },
-    {
-        'nom': 'ORMVA Gharb',
-        'url': 'https://www.ormvag.ma/fr/appels-doffres',
-        'source_id': 'ormvag.ma'
-    },
-    {
-        'nom': 'Cosumar — Sucre',
-        'url': 'https://www.cosumar.co.ma/fr/appels-doffres',
-        'source_id': 'cosumar.co.ma'
-    },
-    {
-        'nom': 'Centrale Danone Maroc',
-        'url': 'https://www.centraledanone.ma/fr/fournisseurs',
-        'source_id': 'centraledanone.ma'
-    },
-
-    # ═══════════════════════════════════════════════════════════
-    # BTP & INFRASTRUCTURE
-    # ═══════════════════════════════════════════════════════════
-    {
-        'nom': 'ADM — Autoroutes du Maroc',
-        'url': 'https://www.adm.co.ma/fr/fournisseurs/appels-doffres',
-        'source_id': 'adm.co.ma'
-    },
-    {
-        'nom': 'Al Omrane — Habitat',
-        'url': 'https://www.alomrane.ma/fr/appels-doffres',
-        'source_id': 'alomrane.ma'
-    },
-    {
-        'nom': 'MedZ — Zones Industrielles',
-        'url': 'https://www.medz.ma/fr/appels-doffres',
-        'source_id': 'medz.ma'
-    },
-    {
-        'nom': 'Casa Amenagement',
-        'url': 'https://www.casaamenagement.ma/appels-doffres',
-        'source_id': 'casaamenagement.ma'
-    },
-    {
-        'nom': 'FNBTP — Federation Nationale BTP',
-        'url': 'https://www.fnbtp.ma/appels-doffres',
-        'source_id': 'fnbtp.ma'
-    },
-    {
-        'nom': 'AAVBR — Agence Amenagement Vallee Bou Regreg',
-        'url': 'https://www.aavbr.ma/fr/appels-doffres',
-        'source_id': 'aavbr.ma'
-    },
-
-    # ═══════════════════════════════════════════════════════════
-    # INDUSTRIE AUTOMOBILE
-    # ═══════════════════════════════════════════════════════════
-    {
-        'nom': 'AMICA — Industrie Auto Maroc',
-        'url': 'https://www.amica.ma/appels-doffres',
-        'source_id': 'amica.ma'
-    },
-    {
-        'nom': 'ANPME — Agence PME',
-        'url': 'https://www.anpme.ma/fr/appels-doffres',
-        'source_id': 'anpme.ma'
-    },
-    {
-        'nom': 'Renault Maroc',
-        'url': 'https://www.group.renault.com/nos-engagements/achats/',
-        'source_id': 'renault.com'
-    },
-
-    # ═══════════════════════════════════════════════════════════
-    # COLLECTIVITES & INSTITUTIONS
-    # ═══════════════════════════════════════════════════════════
-    {
-        'nom': 'Region Casablanca-Settat',
-        'url': 'https://www.casablanca-settat.ma/fr/appels-doffres',
-        'source_id': 'casablanca-settat.ma'
-    },
-    {
-        'nom': 'Commune de Casablanca',
-        'url': 'https://www.casablanca.ma/fr/appels-doffres',
-        'source_id': 'casablanca.ma'
-    },
-    {
-        'nom': 'Commune de Rabat',
-        'url': 'https://www.rabat.ma/fr/appels-doffres',
-        'source_id': 'rabat.ma'
-    },
-    {
-        'nom': 'AMEE — Agence Maitrise Energie',
-        'url': 'https://www.amee.ma/fr/appels-doffres',
-        'source_id': 'amee.ma'
-    },
-    {
-        'nom': 'OFPPT — Formation Professionnelle',
-        'url': 'https://www.ofppt.ma/fr/appels-doffres',
-        'source_id': 'ofppt.ma'
-    },
-
-]
-
-# ── Session HTTP avec retry automatique ──────────────────────────────────────
-def creer_session():
-    session = requests.Session()
-    retry = Retry(
-        total=2,
-        backoff_factor=0.5,
-        status_forcelist=[429, 500, 502, 503, 504]
-    )
-    adapter = HTTPAdapter(max_retries=retry)
-    session.mount('http://', adapter)
-    session.mount('https://', adapter)
-    return session
-
-SESSION = creer_session()
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+log = logging.getLogger("ergowatch")
 
 HEADERS = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-    'Accept-Language': 'fr-FR,fr;q=0.9,ar;q=0.8,en;q=0.7',
-    'Accept-Encoding': 'gzip, deflate',
-    'Connection': 'keep-alive'
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0 Safari/537.36",
+    "Accept-Language": "fr-FR,fr;q=0.9,ar;q=0.8",
 }
 
-# ── Calcul pertinence ─────────────────────────────────────────────────────────
-def calculer_pertinence(titre, description=''):
-    texte = (titre + ' ' + description).lower()
-    score = 0
-    for mot in MOTS_CLES_PRINCIPAUX:
-        if mot.lower() in texte:
-            if mot in ['ergonomie', 'ergonomique', 'audit ergonomique',
-                       'diagnostic ergonomique', 'intervention ergonomique',
-                       'etude ergonomique', 'conseil ergonomique']:
-                score += 25
-            elif mot in ['TMS', 'facteurs humains', 'sante au travail',
-                         'accessibilite', 'WCAG', 'conditions de travail',
-                         'sante au travail']:
-                score += 15
-            else:
-                score += 10
-    for mot in MOTS_CLES_SECONDAIRES:
-        if mot.lower() in texte:
-            score += 5
+SEARCH_TERMS = [
+    "ergonomie", "ergonomique", "poste de travail", "conditions de travail",
+    "santé au travail", "risques professionnels", "TMS",
+    "aménagement bureaux", "mobilier de bureau", "accessibilité",
+]
+
+KEYWORD_WEIGHTS = {
+    "ergonomie": 30, "ergonomique": 30, "ergonome": 30, "ergonomics": 30,
+    "facteurs humains": 25, "human factors": 25,
+    "poste de travail": 20, "postes de travail": 20,
+    "prévention tms": 20, "troubles musculosquelettiques": 20, "tms": 15,
+    "santé au travail": 15, "conditions de travail": 15,
+    "risques professionnels": 12, "pénibilité": 12,
+    "aménagement bureau": 12, "aménagement des bureaux": 12,
+    "mobilier ergonomique": 15, "siège ergonomique": 15,
+    "conception ux": 10, "usabilité": 10, "expérience utilisateur": 10,
+    "accessibilité": 8, "wcag": 10,
+    "mobilier de bureau": 8, "formation sécurité": 6,
+}
+
+EXCLUDE_TERMS = [
+    "fourniture de véhicules", "travaux de construction", "gardiennage",
+    "nettoyage des locaux", "denrées alimentaires",
+]
+
+
+def compute_pertinence(text: str) -> int:
+    t = text.lower()
+    if any(x in t for x in EXCLUDE_TERMS):
+        return 0
+    score = sum(w for kw, w in KEYWORD_WEIGHTS.items() if kw in t)
     return min(score, 100)
 
-def determiner_statut(date_limite_str):
+
+def extract_keywords(text: str) -> list:
+    t = text.lower()
+    return [kw for kw in KEYWORD_WEIGHTS if kw in t][:6]
+
+
+def parse_date(raw: str):
+    if not raw:
+        return None
+    raw = raw.strip()
+    for fmt in ("%d/%m/%Y", "%d-%m-%Y", "%Y-%m-%d", "%d/%m/%y"):
+        try:
+            return datetime.strptime(raw, fmt).strftime("%Y-%m-%d")
+        except ValueError:
+            continue
+    return None
+
+
+def compute_statut(date_limite):
+    if not date_limite:
+        return "Ouvert"
     try:
-        date_limite = datetime.strptime(date_limite_str, '%Y-%m-%d')
-        jours = (date_limite - datetime.now()).days
-        if jours < 0:
-            return 'Cloture'
-        elif jours <= 7:
-            return 'Urgent'
-        elif jours <= 14:
-            return 'Cloture proche'
-        else:
-            return 'Ouvert'
-    except:
-        return 'Ouvert'
+        d = datetime.strptime(date_limite, "%Y-%m-%d").date()
+        delta = (d - date.today()).days
+        if delta < 0:
+            return "Clôturé"
+        if delta <= 7:
+            return "Clôture proche"
+        if delta <= 14:
+            return "Urgent"
+        return "Ouvert"
+    except Exception:
+        return "Ouvert"
 
-# ── Scraper generique avec filtrage ameliore ──────────────────────────────────
-def scraper_source(source):
-    aos = []
-    try:
-        params = source.get('params', {})
-        response = SESSION.get(
-            source['url'],
-            headers=HEADERS,
-            params=params,
-            timeout=25,
-            verify=False  # Contourne les erreurs SSL
-        )
-        if response.status_code != 200:
-            print(f'  Warning HTTP {response.status_code}')
-            return aos
 
-        soup = BeautifulSoup(response.text, 'html.parser')
+def scrape_marchespublics() -> list:
+    results = []
+    base = "https://www.marchespublics.gov.ma"
 
-        # Supprimer les menus de navigation pour eviter les faux positifs
-        for nav in soup.find_all(['nav', 'header', 'footer', 'script', 'style']):
-            nav.decompose()
+    for term in SEARCH_TERMS:
+        try:
+            url = f"{base}/index.php?page=entreprise.EntrepriseAdvancedSearch&AllCons&keyWord={requests.utils.quote(term)}"
+            resp = requests.get(url, headers=HEADERS, timeout=20)
+            log.info(f"[Maroc] Recherche '{term}' → HTTP {resp.status_code}, {len(resp.text)} octets")
 
-        # Chercher dans les zones de contenu principal
-        elements = soup.find_all(
-            ['a', 'h2', 'h3', 'h4', 'li', 'td', 'p'],
-            limit=400
-        )
+            soup = BeautifulSoup(resp.text, "html.parser")
+            rows = (soup.select("table.table-results tr")
+                    or soup.select("div.ligne-resultat")
+                    or soup.select("table tr"))
 
-        for el in elements:
-            texte = el.get_text(strip=True)
+            found_this_term = 0
+            for row in rows:
+                text = row.get_text(" ", strip=True)
+                if len(text) < 30:
+                    continue
+                pertinence = compute_pertinence(text)
+                if pertinence < 30:
+                    continue
 
-            # Filtrer : longueur adequate, pas un element de menu court
-            if len(texte) < 20 or len(texte) > 500:
-                continue
+                link = row.find("a")
+                url_ao = (base + link["href"]) if link and link.get("href", "").startswith("/") else (link["href"] if link and link.get("href", "").startswith("http") else base)
 
-            # Ignorer les elements purement navigationnels
-            texte_lower = texte.lower()
-            mots_nav = ['accueil', 'menu', 'login', 'connexion', 'facebook',
-                        'twitter', 'linkedin', 'copyright', 'mentions legales',
-                        'plan du site', 'contact us', 'english', 'arabe']
-            if any(m in texte_lower for m in mots_nav) and len(texte) < 40:
-                continue
+                m = re.search(r"(\d{2}/\d{2}/\d{4})", text)
+                dl = parse_date(m.group(1)) if m else None
 
-            score = calculer_pertinence(texte)
-            if score >= 20:
-                url_ao = source['url']
-                if el.name == 'a' and el.get('href'):
-                    href = el.get('href')
-                    if href.startswith('http'):
-                        url_ao = href
-                    elif href.startswith('/'):
-                        base = '/'.join(source['url'].split('/')[:3])
-                        url_ao = base + href
-
-                date_limite = (datetime.now() + timedelta(days=random.randint(20, 55))).strftime('%Y-%m-%d')
-                statut = determiner_statut(date_limite)
-                mots_trouves = [m for m in MOTS_CLES_PRINCIPAUX if m.lower() in texte.lower()][:5]
-                # Dedoublonner les mots-cles
-                mots_trouves = list(dict.fromkeys(mots_trouves))
-
-                source_id = source['source_id']
-                aos.append({
-                    'titre': texte[:200],
-                    'organisme': source['nom'],
-                    'date_publication': datetime.now().strftime('%Y-%m-%d'),
-                    'date_limite': date_limite,
-                    'budget': 'A consulter',
-                    'pertinence': score,
-                    'mots_cles': mots_trouves if mots_trouves else ['ergonomie'],
-                    'statut': statut,
-                    'source': source_id,
-                    'url': url_ao,
-                    'description': f'AO detecte sur {source["nom"]} — {texte[:150]}',
-                    'wilaya': 'Maroc',
-                    'reference': f'AO-{datetime.now().year}-{source_id.split(".")[0].upper()}-{random.randint(1000,9999)}'
+                results.append({
+                    "titre": text[:180],
+                    "organisme": "Marchés Publics Maroc",
+                    "date_publication": str(date.today()),
+                    "date_limite": dl,
+                    "budget": "À consulter",
+                    "pertinence": pertinence,
+                    "mots_cles": extract_keywords(text),
+                    "statut": compute_statut(dl),
+                    "source": "marchespublics.gov.ma",
+                    "url": url_ao,
+                    "description": text[:400],
+                    "wilaya": "National",
+                    "reference": "",
                 })
+                found_this_term += 1
 
-        print(f'  OK {len(aos)} AO pertinents detectes')
+            log.info(f"[Maroc] '{term}' → {found_this_term} AO pertinents")
+            time.sleep(2)
 
-    except requests.exceptions.SSLError:
-        print(f'  Warning SSL Error (ignore)')
-    except requests.exceptions.Timeout:
-        print(f'  Warning Timeout apres 25s')
-    except requests.exceptions.ConnectionError as e:
-        print(f'  Warning Connexion impossible: {str(e)[:60]}')
-    except Exception as e:
-        print(f'  Warning Erreur: {str(e)[:80]}')
+        except Exception as e:
+            log.warning(f"[Maroc] Erreur sur '{term}': {e}")
 
-    return aos
+    log.info(f"[Maroc] TOTAL brut : {len(results)} AO trouvés")
+    return results
 
 
-# ── Sauvegarde Supabase ───────────────────────────────────────────────────────
-def sauvegarder_supabase(aos):
-    if not SUPABASE_URL or not SUPABASE_KEY:
-        print('ERREUR Cles Supabase manquantes')
-        return 0
+def deduplicate(items: list) -> list:
+    seen, out = set(), []
+    for it in items:
+        key = re.sub(r"\W+", "", it["titre"].lower())[:80]
+        if key not in seen:
+            seen.add(key)
+            out.append(it)
+    return out
+
+
+def mark_expired(sb: Client):
+    today = str(date.today())
     try:
-        supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
-        count = 0
-        for ao in aos:
-            try:
-                supabase.table('appels_offres').upsert(
-                    ao, on_conflict='titre,organisme'
-                ).execute()
-                count += 1
-                print(f'  Sauvegarde: {ao["titre"][:60]}... (score: {ao["pertinence"]})')
-            except Exception as e:
-                print(f'  ERREUR upsert: {e}')
-        return count
+        res = sb.table("appels_offres") \
+            .update({"statut": "Clôturé"}) \
+            .lt("date_limite", today) \
+            .neq("statut", "Clôturé") \
+            .execute()
+        n = len(res.data or [])
+        log.info(f"🧹 {n} offre(s) expirée(s) marquée(s) 'Clôturé'")
     except Exception as e:
-        print(f'ERREUR Connexion Supabase: {e}')
-        return 0
+        log.error(f"Erreur nettoyage expirés : {e}")
 
 
-# ── Main ──────────────────────────────────────────────────────────────────────
+def filter_new_offers(items: list, sb: Client) -> list:
+    try:
+        existing = sb.table("appels_offres").select("titre").execute()
+        existing_keys = {re.sub(r"\W+", "", r["titre"].lower())[:80] for r in (existing.data or [])}
+    except Exception as e:
+        log.error(f"Erreur lecture base : {e}")
+        existing_keys = set()
+
+    new = [it for it in items
+           if re.sub(r"\W+", "", it["titre"].lower())[:80] not in existing_keys]
+    log.info(f"🆕 {len(new)} NOUVEAU(X) AO sur {len(items)} trouvés")
+    return new
+
+
+def save(items: list, sb: Client):
+    if not items:
+        return
+    try:
+        sb.table("appels_offres").upsert(items, on_conflict="titre,organisme").execute()
+        log.info(f"💾 {len(items)} AO sauvegardés")
+    except Exception as e:
+        log.error(f"Erreur sauvegarde : {e}")
+
+
+def send_email_new_offers(new_offers: list):
+    if not new_offers:
+        log.info("📭 Aucun nouvel AO → pas d'email envoyé")
+        return
+    if not all([EMAIL_USER, EMAIL_PASSWORD, EMAIL_DESTINATAIRE]):
+        log.warning("Variables email manquantes → email non envoyé")
+        return
+
+    new_offers = sorted(new_offers, key=lambda x: -x["pertinence"])
+
+    lignes = []
+    for ao in new_offers:
+        lignes.append(f"""
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🎯 {ao['titre']}
+   Pertinence : {ao['pertinence']}%  |  Statut : {ao['statut']}
+   Source : {ao['source']}
+   Date limite : {ao['date_limite'] or 'À consulter'}
+   Lien : {ao['url']}
+""")
+
+    body = f"""Bonjour,
+
+{len(new_offers)} NOUVEAU(X) appel(s) d'offre en ergonomie détecté(s) :
+{''.join(lignes)}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+👉 Tableau de bord : https://votre-app.netlify.app
+
+Votre robot ErgoWatch 🤖
+"""
+
+    msg = MIMEMultipart()
+    msg["Subject"] = f"🚨 ErgoWatch — {len(new_offers)} nouvel(aux) AO ergonomie !"
+    msg["From"] = f"ErgoWatch <{EMAIL_USER}>"
+    msg["To"] = EMAIL_DESTINATAIRE
+    msg.attach(MIMEText(body, "plain", "utf-8"))
+
+    try:
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
+            smtp.login(EMAIL_USER, EMAIL_PASSWORD)
+            smtp.send_message(msg)
+        log.info(f"📧 Email envoyé : {len(new_offers)} nouveaux AO")
+    except Exception as e:
+        log.error(f"Erreur envoi email : {e}")
+
+
 def main():
-    print(f'\nErgoWatch Scraper Maroc — {datetime.now().strftime("%d/%m/%Y %H:%M")}')
-    print(f'Mots-cles: {len(MOTS_CLES_PRINCIPAUX)} principaux + {len(MOTS_CLES_SECONDAIRES)} secondaires')
-    print(f'Sources: {len(SOURCES)} sources a scraper\n')
+    log.info("=" * 55)
+    log.info("🚀 ErgoWatch v2 — Scraping Maroc")
 
-    tous_aos = []
+    sb = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
-    for source in SOURCES:
-        print(f'Scraping {source["nom"]}...')
-        aos = scraper_source(source)
-        tous_aos.extend(aos)
+    mark_expired(sb)
+    found = deduplicate(scrape_marchespublics())
+    found = [f for f in found if f["statut"] != "Clôturé"]
+    new_offers = filter_new_offers(found, sb)
+    save(found, sb)
+    send_email_new_offers(new_offers)
 
-    # Dedoublonner par titre
-    vus = set()
-    aos_uniques = []
-    for ao in tous_aos:
-        cle = ao['titre'][:50].lower()
-        if cle not in vus:
-            vus.add(cle)
-            aos_uniques.append(ao)
-
-    # Trier par pertinence
-    aos_uniques.sort(key=lambda x: x['pertinence'], reverse=True)
-
-    print(f'\nTotal: {len(aos_uniques)} AO uniques trouves')
-    print(f'Top pertinences: {[ao["pertinence"] for ao in aos_uniques[:5]]}')
-
-    if aos_uniques:
-        print(f'\nSauvegarde dans Supabase...')
-        saved = sauvegarder_supabase(aos_uniques)
-        print(f'OK {saved}/{len(aos_uniques)} AO sauvegardes')
-    else:
-        print('\nAucun AO trouve — les sources sont peut-etre inaccessibles')
-
-    print('\nScraping termine!')
+    log.info("✅ Terminé")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
