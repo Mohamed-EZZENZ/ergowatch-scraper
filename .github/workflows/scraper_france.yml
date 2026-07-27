@@ -29,12 +29,17 @@ jobs:
         run: pip install -r requirements.txt
 
       # ── 4. Lancer le scraper Maroc ────────────────────────────────
+      #     Utilise désormais les MÊMES secrets que le scraper France
+      #     → une seule et même base Supabase pour les deux pays
       - name: 🇲🇦 Scraper Maroc (marchespublics.gov.ma)
         id: scraper_maroc
         run: python scraper.py 2>&1 | tee maroc_output.txt
         env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL_MAROC }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY_MAROC }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          EMAIL_USER: ${{ secrets.EMAIL_USER }}
+          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+          EMAIL_DESTINATAIRE: ${{ secrets.EMAIL_DESTINATAIRE }}
         continue-on-error: true
 
       # ── 5. Lancer le scraper France ───────────────────────────────
@@ -44,18 +49,34 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          EMAIL_USER: ${{ secrets.EMAIL_USER }}
+          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+          EMAIL_DESTINATAIRE: ${{ secrets.EMAIL_DESTINATAIRE }}
         continue-on-error: true
 
-      # ── 6. Préparer l'heure Maroc ─────────────────────────────────
+      # ── 6. Préparer l'heure Maroc (pour les logs) ──────────────────
       - name: 🕐 Préparer le rapport
         id: rapport
         run: |
           HEURE=$(TZ='Africa/Casablanca' date '+%d/%m/%Y à %Hh%M')
           echo "heure=$HEURE" >> $GITHUB_OUTPUT
 
-      # ── 7. Email si au moins un scraper a réussi ─────────────────
-      - name: ✅ Email — Veille terminée
+      # ── 7. Résumé lisible dans les logs GitHub ─────────────────────
+      #     (remplace l'ancien email générique — les emails "nouveautés"
+      #      sont désormais envoyés directement par scraper.py / scraper_france.py)
+      - name: 📊 Résumé de l'exécution
         if: always()
+        run: |
+          echo "═══════════════════════════════════════"
+          echo "🎯 ErgoWatch — Rapport du ${{ steps.rapport.outputs.heure }}"
+          echo "═══════════════════════════════════════"
+          echo "🇲🇦 Scraper Maroc  : ${{ steps.scraper_maroc.outcome }}"
+          echo "🇫🇷 Scraper France : ${{ steps.scraper_france.outcome }}"
+          echo "═══════════════════════════════════════"
+
+      # ── 8. Email UNIQUEMENT en cas d'échec technique des DEUX scrapers ─
+      - name: ❌ Email — Erreur technique (double échec)
+        if: steps.scraper_maroc.outcome == 'failure' && steps.scraper_france.outcome == 'failure'
         uses: dawidd6/action-send-mail@v3
         with:
           server_address: smtp.gmail.com
@@ -63,30 +84,17 @@ jobs:
           secure: true
           username: ${{ secrets.EMAIL_USER }}
           password: ${{ secrets.EMAIL_PASSWORD }}
-          subject: "🎯 ErgoWatch — Rapport de veille du ${{ steps.rapport.outputs.heure }}"
+          subject: "❌ ErgoWatch — Erreur technique du ${{ steps.rapport.outputs.heure }}"
           to: ${{ secrets.EMAIL_DESTINATAIRE }}
           from: "ErgoWatch Maroc <${{ secrets.EMAIL_USER }}>"
           body: |
             Bonjour,
 
-            Votre robot de veille ErgoWatch vient de terminer son analyse.
+            ⚠️ Les DEUX scrapers (Maroc et France) ont échoué lors de
+            l'exécution du ${{ steps.rapport.outputs.heure }}.
 
-            ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-            🇲🇦 Scraper Maroc  : ${{ steps.scraper_maroc.outcome == 'success' && '✅ Succès' || '❌ Échec' }}
-            🇫🇷 Scraper France : ${{ steps.scraper_france.outcome == 'success' && '✅ Succès' || '❌ Échec' }}
-            🕐 Exécuté le      : ${{ steps.rapport.outputs.heure }}
-            ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-            De nouveaux appels d'offre en ergonomie ont peut-être
-            été ajoutés à votre base de données Supabase.
-
-            👉 Consultez votre tableau de bord :
-            https://votre-app.netlify.app
-
-            En cas d'erreur, consultez les logs GitHub :
+            👉 Consultez les logs pour diagnostiquer :
             https://github.com/${{ github.repository }}/actions
 
-            ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
             Cordialement,
             Votre robot ErgoWatch 🤖
-            Indigo Ergonomie Maroc
