@@ -241,6 +241,15 @@ def scraper_boamp():
                 if typeavis:
                     desc += f" - {typeavis}"
 
+                # Ignorer les offres dont la date limite est déjà dépassée
+                if date_lim:
+                    try:
+                        d_lim_check = datetime.strptime(str(date_lim)[:10], '%Y-%m-%d').date()
+                        if d_lim_check < date.today():
+                            continue
+                    except Exception:
+                        pass
+
                 ao = {
                     'titre': objet[:500],
                     'organisme': organisme[:200] if organisme else 'Non précisé',
