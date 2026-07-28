@@ -191,22 +191,12 @@ def scraper_boamp():
 
                 if not objet or len(objet) < 5:
                     continue
-                  
-                # On fait confiance à la recherche BOAMP (elle a déjà
-                        # trouvé ce terme quelque part dans le document complet).
-                        # On exclut seulement les catégories manifestement hors-sujet.
-                        titre_lower = objet.lower()
-                        EXCLUSIONS = ['fourniture de carburant', 'parking souterrain',
-                                      'transport aérien', 'vélos neufs', 'pâtisseries',
-                                      'denrées alimentaires', 'nettoiement', 'élagage',
-                                      'abattage', 'exploitation et maintenance',
-                                      'engin de tassage', 'étanchéité-couverture']
-                        if any(exc in titre_lower for exc in EXCLUSIONS):
-                            continue
-
-                        score = 45
-                        mots = [terme]
-
+                titre_lower = objet.lower()
+                EXCLUSIONS = ['fourniture de carburant', 'parking souterrain', 'transport aérien', 'vélos neufs', 'pâtisseries', 'denrées alimentaires', 'nettoiement', 'élagage', 'abattage', 'exploitation et maintenance', 'engin de tassage', 'étanchéité-couverture']
+                if any(exc in titre_lower for exc in EXCLUSIONS):
+                    continue
+                score = 45
+                mots = [terme]
                 # Budget — chercher dans plusieurs champs possibles
                 budget = None
                 montant_raw = (r.get('montant') or r.get('valeur_estimee') or
