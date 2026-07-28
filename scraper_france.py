@@ -191,7 +191,6 @@ def scraper_boamp():
 
                 if not objet or len(objet) < 5:
                     continue
-                if not objet or len(objet) < 5:
                   
                 score, mots = calculer_pertinence(objet, ' '.join(str(r.get(f, '') or '') for f in ['descripteur_libelle', 'nature_libelle', 'sousnature_libelle', 'criteres']), organisme)
 
