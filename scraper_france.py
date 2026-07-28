@@ -141,6 +141,8 @@ def scraper_boamp():
             params = {
                 'q': terme,
                 'limit': 50,
+                'order_by': 'dateparution desc',
+                'where': f"datelimitereponse >= date'{date.today().isoformat()}'",
             }
 
             response = requests.get(BASE_URL, params=params, timeout=30)
