@@ -191,15 +191,10 @@ def scraper_boamp():
 
                 if not objet or len(objet) < 5:
                     continue
+                if not objet or len(objet) < 5:
+                  
+                score, mots = calculer_pertinence(objet, ' '.join(str(r.get(f, '') or '') for f in ['descripteur_libelle', 'nature_libelle', 'sousnature_libelle', 'criteres']), organisme)
 
-                # Élargir l'analyse à d'autres champs BOAMP pour ne pas rater
-# les offres où le mot-clé est dans la description plutôt que le titre
-contexte_supplementaire = ' '.join(str(r.get(f, '') or '') for f in
-    ['descripteur_libelle', 'nature_libelle', 'sousnature_libelle', 'criteres'])
-score, mots = calculer_pertinence(objet, contexte_supplementaire, organisme)
-
-                # On ne fait plus confiance à BOAMP pour la pertinence :
-                # si le titre réel ne contient aucun mot-clé métier, on ignore l'offre.
                 if score < 20:
                     continue
 
