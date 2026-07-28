@@ -192,15 +192,8 @@ def scraper_boamp():
 
                 score, mots = calculer_pertinence(objet, '', organisme)
 
-                # Si le score est 0 mais que le terme de recherche est pertinent,
-                # on donne un score minimum (BOAMP a déjà filtré par pertinence)
-                if score == 0 and terme in ['ergonomie', 'ergonome', 'ergonomiste']:
-                    score = 40
-                    mots = [terme]
-                elif score == 0:
-                    score = 25
-                    mots = [terme]
-
+                # On ne fait plus confiance à BOAMP pour la pertinence :
+                # si le titre réel ne contient aucun mot-clé métier, on ignore l'offre.
                 if score < 20:
                     continue
 
