@@ -192,10 +192,20 @@ def scraper_boamp():
                 if not objet or len(objet) < 5:
                     continue
                   
-                score, mots = calculer_pertinence(objet, ' '.join(str(r.get(f, '') or '') for f in ['descripteur_libelle', 'nature_libelle', 'sousnature_libelle', 'criteres']), organisme)
+                # On fait confiance à la recherche BOAMP (elle a déjà
+                        # trouvé ce terme quelque part dans le document complet).
+                        # On exclut seulement les catégories manifestement hors-sujet.
+                        titre_lower = objet.lower()
+                        EXCLUSIONS = ['fourniture de carburant', 'parking souterrain',
+                                      'transport aérien', 'vélos neufs', 'pâtisseries',
+                                      'denrées alimentaires', 'nettoiement', 'élagage',
+                                      'abattage', 'exploitation et maintenance',
+                                      'engin de tassage', 'étanchéité-couverture']
+                        if any(exc in titre_lower for exc in EXCLUSIONS):
+                            continue
 
-                if score < 20:
-                    continue
+                        score = 45
+                        mots = [terme]
 
                 # Budget — chercher dans plusieurs champs possibles
                 budget = None
