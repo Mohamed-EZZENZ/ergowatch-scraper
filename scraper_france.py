@@ -192,7 +192,10 @@ def scraper_boamp():
                 if not objet or len(objet) < 5:
                     continue
                 titre_lower = objet.lower()
-                if 'ergonom' not in titre_lower:
+                TERMES_TITRE = ['ergonom', 'trouble musculo', 'tms',
+                                'risques professionnels', 'conditions de travail',
+                                'poste de travail', 'santé au travail']
+                if not any(t in titre_lower for t in TERMES_TITRE):
                     continue
 
                     score = 60
