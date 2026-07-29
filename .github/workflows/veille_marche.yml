@@ -1,0 +1,31 @@
+name: ErgoWatch — Veille Marché Hebdomadaire
+
+on:
+  schedule:
+    - cron: '0 6 * * 1'   # Tous les lundis à 07h00 heure Maroc (UTC+1)
+  workflow_dispatch:        # Bouton manuel "Run workflow"
+
+jobs:
+  veille-marche:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: 📥 Récupérer le code
+        uses: actions/checkout@v3
+
+      - name: 🐍 Installer Python 3.11
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: 📦 Installer les dépendances
+        run: pip install requests
+
+      - name: 📊 Lancer la veille de marché
+        run: python veille_marche.py
+        env:
+          EMAIL_USER: ${{ secrets.EMAIL_USER }}
+          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+          EMAIL_DESTINATAIRE: ${{ secrets.EMAIL_DESTINATAIRE }}
