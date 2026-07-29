@@ -3,7 +3,7 @@ name: ErgoWatch — Veille Marché Hebdomadaire
 on:
   schedule:
     - cron: '0 6 * * 1'   # Tous les lundis à 07h00 heure Maroc (UTC+1)
-  workflow_dispatch:        # Bouton manuel "Run workflow"
+  workflow_dispatch:
 
 jobs:
   veille-marche:
@@ -29,3 +29,4 @@ jobs:
           EMAIL_USER: ${{ secrets.EMAIL_USER }}
           EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
           EMAIL_DESTINATAIRE: ${{ secrets.EMAIL_DESTINATAIRE }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
