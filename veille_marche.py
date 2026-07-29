@@ -1,12 +1,12 @@
 """
-ErgoWatch — Veille Stratégique de Marché (Maroc) — v2 avec analyse IA
+ErgoWatch — Veille Stratégique de Marché (Maroc) — v3
 =======================================================================
-Veille hebdomadaire des signaux économiques marocains, désormais
-qualifiés par Claude (Qui / Pourquoi / Comment / Quand) plutôt que
-simplement triés par mots-clés.
+Veille hebdomadaire des signaux économiques marocains, filtrée par
+sources fiables puis qualifiée par Claude (Qui / Pourquoi / Comment / Quand).
 
-Sources : Google News RSS (gratuit, sans clé API)
-Analyse : API Claude (Haiku — économique, rapide)
+Sources brutes : Google News RSS (agrégateur, gratuit, sans clé API)
+Filtre qualité : liste blanche de presse économique reconnue (voir SOURCES_FIABLES)
+Analyse : API Claude (Haiku)
 Fréquence : hebdomadaire (voir .github/workflows/veille_marche.yml)
 """
 
@@ -46,8 +46,37 @@ SECTEURS = {
 
 JOURS_FENETRE = 8
 
+# ─── Sources de confiance ───────────────────────────────────────────
+# Presse économique marocaine et panafricaine reconnue. Modifiez cette
+# liste librement — ajoutez ou retirez des sources selon votre confiance.
+SOURCES_FIABLES = [
+    "médias24", "medias24",
+    "la vie éco", "la vie eco",
+    "l'economiste", "leconomiste",
+    "challenge.ma", "challenge",
+    "le matin", "lematin",
+    "aujourd'hui le maroc",
+    "les inspirations éco", "leseco",
+    "telquel",
+    "hespress",
+    "maroc diplomatique",
+    "agence ecofin", "ecofin",
+    "l'opinion", "lopinion",
+    "africa intelligence",
+    "jeune afrique",
+    "reuters",
+    "bloomberg",
+    "the north africa post",
+    "map express", "map.ma", "maghreb arabe presse",
+]
 
-def fetch_google_news(query: str, max_results: int = 8) -> list:
+
+def source_fiable(source: str) -> bool:
+    s = (source or '').lower()
+    return any(ref in s for ref in SOURCES_FIABLES)
+
+
+def fetch_google_news(query: str, max_results: int = 10) -> list:
     url = ("https://news.google.com/rss/search?q=" + urllib.parse.quote(query) + "&hl=fr&gl=MA&ceid=MA:fr")
     try:
         resp = requests.get(url, headers=HEADERS, timeout=20)
@@ -86,9 +115,10 @@ def est_recent(date_str: str, jours: int = JOURS_FENETRE) -> bool:
 
 
 def collecter_tout() -> list:
-    """Collecte brute, tous secteurs confondus, avec le secteur d'origine attaché."""
+    """Collecte brute, filtrée par sources fiables, tous secteurs confondus."""
     vus = set()
     candidats = []
+    rejetes_source = 0
     for secteur, requetes in SECTEURS.items():
         for q in requetes:
             for item in fetch_google_news(q):
@@ -96,17 +126,18 @@ def collecter_tout() -> list:
                     continue
                 if not est_recent(item['date_str']):
                     continue
+                if not source_fiable(item['source']):
+                    rejetes_source += 1
+                    continue
                 vus.add(item['titre'])
                 item['secteur'] = secteur
                 candidats.append(item)
             time.sleep(1)
-    log.info(f"📥 {len(candidats)} articles bruts collectés")
+    log.info(f"📥 {len(candidats)} articles retenus (sources fiables) — {rejetes_source} écartés (source non reconnue)")
     return candidats
 
 
 def analyser_avec_ia(candidats: list) -> list:
-    """Envoie tous les candidats à Claude en un seul appel, récupère
-    uniquement ceux jugés réellement pertinents avec Qui/Pourquoi/Comment/Quand."""
     if not candidats:
         return []
     if not ANTHROPIC_API_KEY:
@@ -123,11 +154,11 @@ de conseil en ergonomie au travail. Nos services : audit et aménagement de post
 de travail, prévention des troubles musculosquelettiques (TMS), mise en conformité
 santé-sécurité et RSE.
 
-Voici {len(candidats)} articles d'actualité économique marocaine de la semaine.
-Pour CHAQUE article, évalue s'il représente une opportunité commerciale réaliste
-à moyen terme (nouvelle usine, extension, recrutement massif, nouvelle réglementation
-applicable, grand chantier...). Sois strict : la majorité des articles n'ont PAS
-de lien réel avec l'ergonomie, marque-les pertinent=false.
+Voici {len(candidats)} articles d'actualité économique marocaine de la semaine,
+tous issus de presse économique reconnue. Pour CHAQUE article, évalue s'il
+représente une opportunité commerciale réaliste à moyen terme (nouvelle usine,
+extension, recrutement massif, nouvelle réglementation applicable, grand chantier...).
+Sois strict : marque pertinent=false si le lien avec l'ergonomie n'est pas réaliste.
 
 Réponds UNIQUEMENT avec du JSON valide, sans texte avant/après, sans balises markdown :
 [
@@ -196,12 +227,16 @@ def construire_email(opportunites: list):
     corps = f"""Bonjour,
 
 Voici {len(opportunites)} opportunité(s) commerciale(s) identifiée(s) et
-qualifiée(s) par IA cette semaine (sur l'ensemble des secteurs suivis).
+qualifiée(s) par IA cette semaine, à partir de presse économique reconnue
+uniquement (voir liste des sources suivies dans le script).
 {''.join(blocs)}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Cette analyse est générée automatiquement à partir de l'actualité
-économique publique (Google News), qualifiée par Claude. Vérifiez
-toujours les détails avant une prise de contact.
+Sources filtrées : Médias24, La Vie Éco, L'Economiste, Challenge.ma,
+Le Matin, Les Inspirations Éco, Telquel, Hespress, Agence Ecofin,
+L'Opinion, Africa Intelligence, Jeune Afrique, Reuters, Bloomberg, MAP.
+
+Cette analyse est générée automatiquement, qualifiée par Claude.
+Vérifiez toujours les détails avant une prise de contact.
 
 Cordialement,
 Votre robot ErgoWatch 🤖
@@ -230,7 +265,7 @@ def envoyer_email(corps: str, nb: int):
 
 def main():
     log.info("=" * 55)
-    log.info("🚀 ErgoWatch — Veille stratégique de marché (v2 IA)")
+    log.info("🚀 ErgoWatch — Veille stratégique de marché (v3)")
 
     candidats = collecter_tout()
     opportunites = analyser_avec_ia(candidats)
