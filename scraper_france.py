@@ -198,8 +198,8 @@ def scraper_boamp():
                 if not any(t in titre_lower for t in TERMES_TITRE):
                     continue
 
-                score = 60
-                mots = [terme]
+                score, mots = calculer_pertinence(objet, '', organisme)
+                score = max(score, 60)
                 # Budget — chercher dans plusieurs champs possibles
                 budget = None
                 montant_raw = (r.get('montant') or r.get('valeur_estimee') or
