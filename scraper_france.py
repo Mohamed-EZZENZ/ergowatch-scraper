@@ -608,8 +608,9 @@ def sauvegarder_supabase(appels_offres: list[dict]) -> tuple[int, int]:
                     except Exception:
                         ao[champ_date] = None
 
-            # Upsert (insert or update si même titre+organisme)
-            result = supabase.table('appels_offres_france').upsert(
+            # Upsert vers la table unifiée (Maroc + France)
+            ao['pays'] = 'France'
+            result = supabase.table('appels_offres').upsert(
                 ao,
                 on_conflict='titre,organisme'
             ).execute()
