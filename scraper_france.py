@@ -34,6 +34,12 @@ SUPABASE_SERVICE_KEY = os.environ.get('SUPABASE_SERVICE_KEY', '').strip().replac
 
 # Log pour diagnostic
 logger.info(f"🔗 Supabase URL: {SUPABASE_URL[:50]}..." if SUPABASE_URL else "❌ SUPABASE_URL vide!")
+# ============================================================
+# CONFIGURATION EMAIL
+# ============================================================
+EMAIL_USER = os.environ.get('EMAIL_USER', '').strip()
+EMAIL_PASSWORD = os.environ.get('EMAIL_PASSWORD', '').strip()
+EMAIL_DESTINATAIRE = os.environ.get('EMAIL_DESTINATAIRE', '').strip()
 
 # ============================================================
 # MOTS-CLÉS ERGONOMIE (France)
@@ -625,6 +631,51 @@ def sauvegarder_supabase(appels_offres: list[dict]) -> tuple[int, int]:
 
 
 # ============================================================
+# NOTIFICATION EMAIL
+# ============================================================
+def envoyer_email_nouveaux(nouveaux: list[dict]):
+    """Envoie un email listant les nouveaux AO France."""
+    if not nouveaux:
+        logger.info("📭 Aucun nouvel AO France → pas d'email envoyé")
+        return
+    if not EMAIL_USER or not EMAIL_PASSWORD or not EMAIL_DESTINATAIRE:
+        logger.warning("⚠️ Variables EMAIL manquantes → email non envoyé")
+        return
+
+    import smtplib
+    from email.mime.text import MIMEText
+
+    lignes = []
+    for ao in nouveaux:
+        lignes.append(
+            f"[{ao.get('pertinence', '?')}%] {ao.get('titre', '')}\n"
+            f"   Organisme : {ao.get('organisme', '—')}\n"
+            f"   Date limite : {ao.get('date_limite', '—')}\n"
+            f"   Lien : {ao.get('url', '—')}\n"
+        )
+
+    corps = (
+        f"Bonjour,\n\n"
+        f"🇫🇷 ErgoWatch a détecté {len(nouveaux)} nouvel(s) appel(s) d'offres France :\n\n"
+        + "\n".join(lignes)
+        + "\n—\nVotre robot ErgoWatch 🤖"
+    )
+
+    msg = MIMEText(corps, 'plain', 'utf-8')
+    msg['Subject'] = f"🇫🇷 ErgoWatch — {len(nouveaux)} nouvel(s) AO France"
+    msg['From'] = f"ErgoWatch <{EMAIL_USER}>"
+    msg['To'] = EMAIL_DESTINATAIRE
+
+    try:
+        with smtplib.SMTP_SSL('smtp.gmail.com', 465) as srv:
+            srv.login(EMAIL_USER, EMAIL_PASSWORD)
+            srv.send_message(msg)
+        logger.info(f"📧 Email envoyé : {len(nouveaux)} nouveau(x) AO")
+    except Exception as e:
+        logger.error(f"❌ Envoi email échoué : {e}")
+
+
+# ============================================================
 # DÉDOUBLONNAGE LOCAL
 # ============================================================
 def dedoublonner(resultats: list[dict]) -> list[dict]:
@@ -700,12 +751,25 @@ def main():
         for ao in tres_pertinents[:5]:
             logger.info(f"   [{ao['pertinence']}%] {ao['titre'][:80]} — {ao['organisme'][:40]}")
 
-    # Sauvegarde
+    # Sauvegarde + détection des nouveaux
     if tous_resultats:
+        titres_connus = None
+        try:
+            sb = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+            existants = sb.table('appels_offres').select('titre').eq('pays', 'France').execute()
+            titres_connus = {r['titre'][:100].lower() for r in (existants.data or [])}
+        except Exception as e:
+            logger.warning(f"⚠️ Lecture des AO existants impossible : {e}")
+
+        nouveaux = [ao for ao in tous_resultats if ao['titre'][:100].lower() not in titres_connus] if titres_connus is not None else []
+
         logger.info(f"\n💾 Sauvegarde Supabase ({len(tous_resultats)} AO)...")
         inseres, ignores = sauvegarder_supabase(tous_resultats)
         logger.info(f"   ✅ Insérés/mis à jour : {inseres}")
         logger.info(f"   ⏩ Ignorés (erreur)   : {ignores}")
+        logger.info(f"   🆕 Nouveaux : {len(nouveaux)}")
+
+        envoyer_email_nouveaux(nouveaux)
     else:
         logger.info("⚠️ Aucun résultat à sauvegarder")
 
