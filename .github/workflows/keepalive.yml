@@ -1,0 +1,29 @@
+name: ErgoWatch — Maintien en activité
+
+# GitHub désactive les workflows programmés d'un dépôt public après
+# 60 jours sans activité. Ce workflow fait un petit commit automatique
+# le 1er de chaque mois pour garder le dépôt "actif".
+
+on:
+  schedule:
+    - cron: '0 5 1 * *'   # le 1er de chaque mois à 06h00 heure Maroc
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  keepalive:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Récupérer le code
+        uses: actions/checkout@v4
+
+      - name: 🔄 Commit de maintien
+        run: |
+          date -u '+%Y-%m-%d %H:%M UTC' > .keepalive
+          git config user.name "ergowatch-bot"
+          git config user.email "ergowatch-bot@users.noreply.github.com"
+          git add .keepalive
+          git commit -m "Maintien en activité (automatique)" || echo "Rien à commiter"
+          git push
